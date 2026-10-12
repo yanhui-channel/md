@@ -2,6 +2,7 @@ import type { PrivateContext } from './types'
 import { Hono } from 'hono'
 import { logout, privateAuth, requireOwner, requireSameOriginWrite } from './auth'
 import { repositoryIdentity } from './github'
+import { privateRoutes } from './routes'
 import { SyncError, validateConfig } from './types'
 
 const app = new Hono<PrivateContext>()
@@ -12,6 +13,8 @@ app.onError((error, c) => {
       c.header('Retry-After', error.retryAfter)
     return c.json({ error: error.code, detail: error.detail }, error.status)
   }
+  if (error.name === 'ZodError' || error instanceof SyntaxError)
+    return c.json({ error: 'invalid_payload' }, 422)
   return c.json({ error: 'request_failed' }, 503)
 })
 app.use('/api/*', async (c, next) => {
@@ -30,6 +33,7 @@ app.get('/api/me', async (c) => {
   return c.json({ ownerId: session.sub, login: session.login, csrfToken: session.csrf, vaultId: await repositoryIdentity(c.env) })
 })
 app.post('/api/logout', logout)
+app.route('/api', privateRoutes)
 app.all('/api/*', c => c.json({ error: 'not_found' }, 404))
 app.all('*', (c) => {
   const path = new URL(c.req.url).pathname

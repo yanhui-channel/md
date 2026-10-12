@@ -1,9 +1,8 @@
-import type { PerThemeSettings } from '../configs/style'
 import { z } from 'zod'
 
 export interface ThemeSnapshot {
   id: string
-  settings: PerThemeSettings
+  settings: z.infer<typeof themeSchema>['settings']
   css: string
   codeCss: string
   previewWidth: string

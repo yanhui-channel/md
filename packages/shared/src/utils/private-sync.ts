@@ -15,6 +15,7 @@ export const privateAssetSchema = z.object({
   mime: z.enum(['image/png', 'image/jpeg', 'image/gif', 'image/webp']),
   size: z.number().int().positive().max(MAX_SYNC_ASSET),
   blobSha: gitShaSchema.nullable(),
+  proof: z.string().regex(/^[a-f0-9]{64}$/).optional(),
 }).strict().refine(asset => asset.path === `assets/${asset.sha256}.${asset.mime === 'image/jpeg' ? 'jpg' : asset.mime.slice(6)}`)
 const articleSchema = z.object({
   id: articleIdSchema,
@@ -83,6 +84,6 @@ function canonical(value: unknown): unknown {
 
 export async function articleDigest(article: PrivateArticle): Promise<string> {
   const { updatedAt: _time, assets, ...content } = parsePrivateArticle(article)
-  const data = { ...content, assets: assets.map(({ blobSha: _sha, ...asset }) => asset).sort((a, b) => a.path.localeCompare(b.path)) }
+  const data = { ...content, assets: assets.map(({ blobSha: _sha, proof: _proof, ...asset }) => asset).sort((a, b) => a.path.localeCompare(b.path)) }
   return sha256Bytes(new TextEncoder().encode(JSON.stringify(canonical(data))))
 }

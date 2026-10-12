@@ -48,6 +48,11 @@ async function pasteFromClipboard() {
 }
 
 function undo() {
+  if (editorStore.activeTarget === 'visual' && editorStore.visualSession) {
+    editorStore.visualSession.undo()
+    editorStore.visualEditor?.commands.focus()
+    return
+  }
   if (!editor.value)
     return
 
@@ -62,6 +67,11 @@ function undo() {
 }
 
 function redo() {
+  if (editorStore.activeTarget === 'visual' && editorStore.visualSession) {
+    editorStore.visualSession.redo()
+    editorStore.visualEditor?.commands.focus()
+    return
+  }
   if (!editor.value)
     return
 

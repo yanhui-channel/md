@@ -16,6 +16,7 @@ export interface Post {
   updateDatetime: Date
   parentId?: string | null
   collapsed?: boolean
+  themeId?: string
 }
 
 export interface PostItemDragState {

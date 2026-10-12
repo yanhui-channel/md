@@ -2,6 +2,8 @@ import type { PdfExportOptions } from './pdf'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_PDF_EXPORT_OPTIONS } from './pdf'
 
+vi.mock('./publication', () => ({ preparePublication: vi.fn(), assertPublicationComplete: vi.fn() }))
+
 vi.mock(`@/i18n/translate`, () => ({
   t: (key: string) => {
     if (key === `store.pdf.pageFooter`)

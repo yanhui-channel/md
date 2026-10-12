@@ -1,14 +1,17 @@
 import type { HLJSApi, LanguageFn } from 'highlight.js'
 import bash from 'highlight.js/lib/languages/bash'
 import css from 'highlight.js/lib/languages/css'
+import java from 'highlight.js/lib/languages/java'
 import javascript from 'highlight.js/lib/languages/javascript'
 import json from 'highlight.js/lib/languages/json'
 import markdown from 'highlight.js/lib/languages/markdown'
 import plaintext from 'highlight.js/lib/languages/plaintext'
 import python from 'highlight.js/lib/languages/python'
 import shell from 'highlight.js/lib/languages/shell'
+import sql from 'highlight.js/lib/languages/sql'
 import typescript from 'highlight.js/lib/languages/typescript'
 import xml from 'highlight.js/lib/languages/xml'
+import yaml from 'highlight.js/lib/languages/yaml'
 import { LRUMap } from './svgCache'
 
 /**
@@ -19,13 +22,16 @@ export const COMMON_LANGUAGES: Record<string, LanguageFn> = {
   bash,
   css,
   javascript,
+  java,
   json,
   markdown,
   plaintext,
   python,
   shell,
+  sql,
   typescript,
   xml,
+  yaml,
 }
 
 const HLJS_VERSION = `11.11.1`

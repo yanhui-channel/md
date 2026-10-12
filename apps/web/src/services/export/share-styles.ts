@@ -4,6 +4,9 @@
  * hsl(var(--foreground)) / var(--blockquote-background). Outside the app they must be
  * inlined or table borders, blockquote backgrounds, etc. break.
  */
+import type { ThemeSnapshot } from '@/lib/visual/theme-snapshot'
+import { renderSnapshotCss } from '@/lib/visual/theme-snapshot'
+
 export const SHARE_SHELL_VARS_CSS = `:root {
   --foreground: 0 0% 3.9%;
   --blockquote-background: #f7f7f7;
@@ -80,8 +83,14 @@ export async function getExportStyles(): Promise<string> {
   return getStylesToAdd()
 }
 
-export async function getStylesToAdd(): Promise<string> {
+export async function getStylesToAdd(snapshot?: ThemeSnapshot): Promise<string> {
+  if (snapshot)
+    return snapshotStyles(snapshot)
   const themeStyles = getThemeStyles()
   const hljsStyles = await getHljsStyles()
   return [themeStyles, hljsStyles].filter(Boolean).join(``)
+}
+
+export function snapshotStyles(snapshot: ThemeSnapshot): string {
+  return `<style>${stripOutputScope(renderSnapshotCss(snapshot)).replace(/<\/style/gi, '<\\/style')}</style><style>${stripOutputScope(snapshot.codeCss).replace(/<\/style/gi, '<\\/style')}</style>`
 }

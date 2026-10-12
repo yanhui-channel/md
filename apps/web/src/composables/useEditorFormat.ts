@@ -11,10 +11,30 @@ import {
   formatUnorderedList,
 } from '@md/shared/editor'
 import { unref } from 'vue'
+import { useEditorStore } from '@/stores/editor'
 
 /** Editor formatting actions; generic unref supports readonly refs. */
 export function useEditorFormat<T extends { value: any }>(editor: T) {
+  const editorStore = useEditorStore()
   function addFormat(cmd: string) {
+    const visual = editorStore.activeTarget === 'visual' ? editorStore.visualEditor : null
+    if (visual) {
+      const key = cmd.split('-').pop()
+      const chain = visual.chain().focus()
+      switch (key) {
+        case 'B': chain.toggleBold().run(); return
+        case 'I': chain.toggleItalic().run(); return
+        case 'D': chain.toggleStrike().run(); return
+        case 'E': chain.toggleCode().run(); return
+        case 'U': chain.toggleBulletList().run(); return
+        case 'O': chain.toggleOrderedList().run(); return
+        case 'K': document.querySelector<HTMLButtonElement>('[data-visual-link]')?.click(); return
+      }
+      if (key && /^[1-6]$/.test(key)) {
+        chain.toggleHeading({ level: Number(key) as 1 | 2 | 3 | 4 | 5 | 6 }).run()
+        return
+      }
+    }
     const editorView = unref(editor) as EditorView
     if (!unref(editor))
       return

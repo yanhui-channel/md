@@ -1,10 +1,17 @@
 import type { RendererAPI } from '@md/shared/types'
 import { postProcessHtml, renderMarkdown } from '@md/core/utils'
 import { t } from '@/i18n/translate'
+import { renderStoredCodeBlocks } from '@/lib/visual/source-preview'
 import { resolveAssetUrl } from '@/services/emoji/urlResolver'
+import { decorateArticle } from '@/yanhui/decorate'
+import { YANHUI_SAMPLE_ID, YANHUI_THEME } from '@/yanhui/defaults'
+import { assets } from '@/yanhui/resources'
 import { useCustomComponentStore } from './customComponent'
+import { usePostStore } from './post'
 import { useThemeStore } from './theme'
 import { useUIStore } from './ui'
+
+const sampleImages = new Map(Object.entries(assets.images))
 
 export interface RenderOptions {
   themeMode?: 'light' | 'dark'
@@ -84,6 +91,8 @@ export const useRenderStore = defineStore(`render`, () => {
   ): string {
     return [
       themeMode,
+      themeStore.theme,
+      usePostStore().currentPostId,
       themeStore.isCiteStatus ? `1` : `0`,
       themeStore.legend,
       themeStore.isCountStatus ? `1` : `0`,
@@ -151,7 +160,31 @@ export const useRenderStore = defineStore(`render`, () => {
     readingTime.words = readingTimeResult.words
     readingTime.minutes = Math.ceil(readingTimeResult.minutes)
 
-    output.value = extractTitles(postProcessHtml(baseHtml, readingTimeResult, renderer))
+    let html = extractTitles(postProcessHtml(renderStoredCodeBlocks(baseHtml, themeStore.isShowLineNumber), readingTimeResult, renderer))
+    const isSample = usePostStore().currentPostId === YANHUI_SAMPLE_ID
+    const isYanhui = themeStore.theme === YANHUI_THEME || themeStore.theme.startsWith('bundle:')
+    if (isYanhui || isSample) {
+      const container = document.createElement('div')
+      container.innerHTML = html
+      if (isYanhui) {
+        decorateArticle(container, assets.avatar)
+        titleList.value.forEach((item) => {
+          const heading = container.querySelector(`[id="${item.url.slice(1)}"]`)
+          if (heading)
+            item.title = heading.textContent ?? item.title
+        })
+      }
+      if (isSample) {
+        container.querySelectorAll('img').forEach((img) => {
+          const src = img.getAttribute('src') ?? ''
+          const image = sampleImages.get(src)
+          if (image)
+            img.src = image
+        })
+      }
+      html = container.innerHTML
+    }
+    output.value = html
 
     lastContent = content
     lastOptionsFingerprint = optionsFingerprint

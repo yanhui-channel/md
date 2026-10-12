@@ -2,6 +2,7 @@ import type { PdfExportOptions } from '@/services/export'
 import { DEFAULT_PDF_EXPORT_OPTIONS, normalizePdfExportOptions } from '@/services/export'
 import { store } from '@/storage'
 import { addPrefix } from '@/storage/prefix'
+import { useEditorStore } from './editor'
 
 /** Global UI state: dark mode, sidebars, dialogs, view mode, etc. */
 export const useUIStore = defineStore(`ui`, () => {
@@ -56,6 +57,14 @@ export const useUIStore = defineStore(`ui`, () => {
   const isShowTableEditDialog = ref(false)
 
   function openTableEditDialog() {
+    const editorStore = useEditorStore()
+    const visual = editorStore.activeTarget === 'visual' && editorStore.visualEditing ? editorStore.visualEditor : null
+    if (visual) {
+      if (visual.isActive('table'))
+        visual.commands.focus()
+      else visual.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
+      return
+    }
     isShowTableEditDialog.value = true
   }
 
@@ -219,7 +228,7 @@ export const useUIStore = defineStore(`ui`, () => {
 
     if (!wasMobile && isMobile.value && viewMode.value === `split`) {
       // Desktop → mobile while split: collapse to edit and remember for restore
-      viewMode.value = `edit`
+      viewMode.value = `preview`
       splitCollapsedByResize = true
     }
     else if (wasMobile && !isMobile.value && splitCollapsedByResize) {

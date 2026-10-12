@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/resizable'
 import { useCursorSync } from '@/composables/useCursorSync'
 import { useScrollSync } from '@/composables/useScrollSync'
+import { useEditorStore } from '@/stores/editor'
 import { useUIStore } from '@/stores/ui'
 
 const PostSlider = defineAsyncComponent(() => import('@/components/editor/post-slider/index.vue'))
@@ -53,7 +54,9 @@ const getPreviewContainer = () => previewPanelCompRef.value?.previewRef ?? null
 
 const { handlePreviewContentClick } = useCursorSync(getEditorView)
 
-useScrollSync(getEditorView, getPreviewContainer, enableScrollSync)
+const editorStore = useEditorStore()
+const syncPreviewScroll = computed(() => enableScrollSync.value && !editorStore.visualEditing)
+useScrollSync(getEditorView, getPreviewContainer, syncPreviewScroll)
 
 const backLight = ref(false)
 const isCoping = ref(false)

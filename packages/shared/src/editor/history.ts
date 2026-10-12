@@ -4,6 +4,7 @@ import { history } from '@codemirror/commands'
 import { Transaction } from '@codemirror/state'
 
 export { history }
+export { isolateHistory, redo as redoHistory, undo as undoHistory } from '@codemirror/commands'
 
 export function replaceDocumentWithoutHistory(view: EditorView, content: string) {
   view.dispatch({

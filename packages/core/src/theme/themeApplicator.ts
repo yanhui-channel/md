@@ -31,7 +31,7 @@ function resolveThemeCSS(themeName: string, themeCSS?: string): string {
   return css
 }
 
-export async function applyTheme(config: ThemeConfig): Promise<void> {
+export function buildThemeCSS(config: ThemeConfig, resolveVariables = true): string {
   const variablesCSS = generateCSSVariables(config.variables)
 
   const themeCSS = resolveThemeCSS(config.themeName, config.themeCSS)
@@ -51,8 +51,12 @@ export async function applyTheme(config: ThemeConfig): Promise<void> {
     scopedCustomCSS,
   ].filter(Boolean).join(`\n\n`)
 
-  mergedCSS = processCSS(mergedCSS)
+  if (resolveVariables)
+    mergedCSS = processCSS(mergedCSS)
 
-  const injector = getThemeInjector()
-  injector.inject(mergedCSS)
+  return mergedCSS
+}
+
+export async function applyTheme(config: ThemeConfig): Promise<void> {
+  getThemeInjector().inject(buildThemeCSS(config))
 }

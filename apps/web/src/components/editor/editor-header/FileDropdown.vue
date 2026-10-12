@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Cloud, Download, FileCode, FileCog, FileText, FolderKanban, FolderOpen, Package, Rows3, Settings, Share2, Upload } from '@lucide/vue'
+import { readArticleBundle, restoreArticleBundle } from '@/services/article-bundle'
 import { PNG_SEGMENT_HEIGHTS } from '@/services/export'
 import { isShareUiEnabled } from '@/services/share/client'
 import { isSyncUiEnabled } from '@/services/sync/client'
@@ -19,6 +20,25 @@ const { t } = useI18n()
 const editorStore = useEditorStore()
 const exportStore = useExportStore()
 const uiStore = useUIStore()
+const bundleInput = ref<HTMLInputElement>()
+const restoring = ref(false)
+async function restoreBundle(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file || restoring.value)
+    return
+  restoring.value = true
+  try {
+    const bundle = await readArticleBundle(file)
+    await restoreArticleBundle(bundle)
+    toast.success('文章、图片与排版已恢复为新文章')
+    if (bundle.external.length || bundle.missing.length)
+      toast.warning('此备份含外链或缺失图片，无法完全离线使用')
+  }
+  catch (error) { toast.error(`恢复失败：${error instanceof Error ? error.message : String(error)}`) }
+  finally { restoring.value = false }
+}
 
 const { isOpenPostSlider, isOpenFolderPanel } = storeToRefs(uiStore)
 const { toggleShowTemplateDialog, toggleShowImportMdDialog, toggleShowSyncDialog, toggleShowEditorStateDialog, toggleShowPreferencesDialog, openShareDialog, openPdfExportDialog } = uiStore
@@ -63,6 +83,7 @@ function exportEditorContent2PDF() {
 </script>
 
 <template>
+  <input ref="bundleInput" data-bundle-input type="file" accept=".zip,application/zip" hidden @change="restoreBundle">
   <MenubarSub v-if="asSub">
     <MenubarSubTrigger>
       {{ t('menu.file') }}
@@ -85,6 +106,9 @@ function exportEditorContent2PDF() {
             <FileText class="mr-2 size-4" />
             {{ t('menu.importMarkdown') }}
           </MenubarItem>
+          <MenubarItem :disabled="restoring" @click="bundleInput?.click()">
+            <Package class="mr-2 size-4" />恢复文章备份 ZIP
+          </MenubarItem>
         </MenubarSubContent>
       </MenubarSub>
 
@@ -97,6 +121,9 @@ function exportEditorContent2PDF() {
           <MenubarItem @click="exportEditorContent2MD()">
             <FileText class="mr-2 size-4" />
             {{ t('menu.exportMarkdown') }}
+          </MenubarItem>
+          <MenubarItem @click="exportStore.exportBundle()">
+            <Package class="mr-2 size-4" />文章备份 ZIP
           </MenubarItem>
           <MenubarSeparator />
           <MenubarItem @click="exportEditorContent2HTML()">
@@ -194,6 +221,9 @@ function exportEditorContent2PDF() {
             <FileText class="mr-2 size-4" />
             {{ t('menu.importMarkdown') }}
           </MenubarItem>
+          <MenubarItem :disabled="restoring" @click="bundleInput?.click()">
+            <Package class="mr-2 size-4" />恢复文章备份 ZIP
+          </MenubarItem>
         </MenubarSubContent>
       </MenubarSub>
 
@@ -206,6 +236,9 @@ function exportEditorContent2PDF() {
           <MenubarItem @click="exportEditorContent2MD()">
             <FileText class="mr-2 size-4" />
             {{ t('menu.exportMarkdown') }}
+          </MenubarItem>
+          <MenubarItem @click="exportStore.exportBundle()">
+            <Package class="mr-2 size-4" />文章备份 ZIP
           </MenubarItem>
           <MenubarSeparator />
           <MenubarItem @click="exportEditorContent2HTML()">

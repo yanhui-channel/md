@@ -196,8 +196,13 @@ function onOutlineDismiss() {
 }
 
 function switchToPost(id: string) {
+  editorStore.visualSession?.commitPending(true)
   postStore.currentPostId = id
-  nextTick(() => editor.value?.focus())
+  nextTick(() => {
+    if (editorStore.activeTarget === 'visual')
+      editorStore.visualEditor?.commands.focus()
+    else editor.value?.focus()
+  })
 }
 
 watch(() => uiStore.goToLineRequest, () => {
@@ -247,9 +252,9 @@ const stats = computed(() => [
 ])
 
 const allViewModes = computed(() => [
-  { key: `edit` as const, icon: PenLine, label: t(`footer.viewEdit`) },
+  { key: `edit` as const, icon: PenLine, label: t(`visual.source`) },
   { key: `split` as const, icon: Columns2, label: t(`footer.viewSplit`) },
-  { key: `preview` as const, icon: Eye, label: t(`footer.viewPreview`) },
+  { key: `preview` as const, icon: Eye, label: t(`visual.edit`) },
 ])
 const viewModes = computed(() =>
   isMobile.value ? allViewModes.value.filter(m => m.key !== `split`) : allViewModes.value,

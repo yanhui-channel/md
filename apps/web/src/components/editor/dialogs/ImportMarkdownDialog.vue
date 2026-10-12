@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { FileText, Globe, Loader2, Upload } from '@lucide/vue'
+import { collectImageReferences } from '@/lib/visual/assets'
+import { assetRepo, LOCAL_ASSET_PATTERN } from '@/storage/repositories/assets'
+import { useEditorStore } from '@/stores/editor'
 import { usePostStore } from '@/stores/post'
 import { useUIStore } from '@/stores/ui'
 
@@ -15,25 +18,24 @@ const activeTab = ref<'url' | 'file'>(`file`)
  * Detect local image paths in Markdown content
  * Exclude http/https URLs, data URIs, and empty paths
  */
-function detectLocalImagePaths(content: string): string[] {
-  const regex = /!\[[^\]]*\]\((?!https?:\/\/|data:)([^)]+)\)/g
-  const paths = new Set<string>()
-  let match = regex.exec(content)
-  while (match != null) {
-    const path = match[1]!.trim()
-    if (path) {
-      paths.add(path)
-    }
-    match = regex.exec(content)
+async function detectLocalImagePaths(content: string): Promise<string[]> {
+  const paths = []
+  for (const path of collectImageReferences(content)) {
+    if (/^(?:https?:|data:|blob:|\/\/)/i.test(path))
+      continue
+    if (LOCAL_ASSET_PATTERN.test(path) && await assetRepo.get(path))
+      continue
+    paths.push(path)
   }
-  return Array.from(paths)
+  return paths
 }
 
 /**
  * Import content; open upload dialog when local images are present
  */
 async function importContent(title: string, content: string) {
-  const localPaths = detectLocalImagePaths(content)
+  useEditorStore().visualSession?.commitPending(true)
+  const localPaths = await detectLocalImagePaths(content)
   if (localPaths.length === 0) {
     postStore.addPost(title)
     postStore.updatePostContent(postStore.currentPostId, content)
@@ -51,6 +53,7 @@ async function importContent(title: string, content: string) {
     const unwatch = watch(
       () => uiStore.localImageUploadData,
       (data) => {
+        if (!data) { unwatch(); resolve(); return }
         if (data && data.processed) {
           unwatch()
           if (data.skipUpload) {

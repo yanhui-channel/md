@@ -1,3 +1,5 @@
+import type { ThemeSnapshot } from '@/lib/visual/theme-snapshot'
+import type { StoredAsset } from '@/storage/repositories/assets'
 import type { Post } from '@/types/post'
 import { uuidv4 } from '@md/shared/utils/uuid'
 import { getDefaultContent } from '@/assets/example/default-content'
@@ -50,9 +52,17 @@ export const usePostStore = defineStore(`post`, () => {
   const sortMode = store.reactive(addPrefix(`sort_mode`), `create-old-new`)
 
   let persistReady = false
+  let restoring = false
+
+  function reportSaveFailure(error: unknown) {
+    writeDocumentsPagehideBackup([...posts.value])
+    const editor = useEditorStore()
+    editor.visualStatus = 'error'
+    editor.visualError = error instanceof Error ? error.message : String(error)
+  }
 
   const persistAll = debounce(async (snapshot: Post[]) => {
-    await documentRepo.saveAll(snapshot)
+    await documentRepo.saveAll(snapshot).catch(reportSaveFailure)
   }, 500)
 
   /**
@@ -72,14 +82,16 @@ export const usePostStore = defineStore(`post`, () => {
       const post = posts.value.find(p => p.id === ids[0])
       // The post may have been deleted while the debounce was pending.
       if (post)
-        await documentRepo.savePost(post)
+        await documentRepo.savePost(post).catch(reportSaveFailure)
       return
     }
-    await documentRepo.saveAll([...posts.value])
+    await documentRepo.saveAll([...posts.value]).catch(reportSaveFailure)
   }, 500)
 
   /** Flush immediately on delete etc. so a refresh before debounce finishes does not restore stale data. */
   async function persistImmediately(): Promise<void> {
+    if (restoring)
+      return
     persistAll.cancel()
     persistDirty.cancel()
     dirtyPostIds.clear()
@@ -88,6 +100,28 @@ export const usePostStore = defineStore(`post`, () => {
     const backupToken = writeDocumentsPagehideBackup(snapshot)
     await documentRepo.saveAll(snapshot)
     clearDocumentsPagehideBackup(backupToken)
+  }
+
+  async function restoreArticle(post: Post, assets: StoredAsset[], theme: ThemeSnapshot): Promise<void> {
+    if (restoring)
+      throw new Error('正在恢复文章，请稍候')
+    restoring = true
+    persistReady = false
+    persistAll.cancel()
+    persistDirty.cancel()
+    try {
+      useEditorStore().flushContentToPostStore()
+      await documentRepo.saveAll([...posts.value])
+      await documentRepo.importArticle(post, assets, theme)
+      await store.get(post.themeId!)
+      posts.value.push(post)
+      currentPostId.value = post.id
+      await nextTick()
+    }
+    finally {
+      restoring = false
+      persistReady = true
+    }
   }
 
   // Watching per-post signatures instead of a deep watch on `posts`: the
@@ -124,7 +158,7 @@ export const usePostStore = defineStore(`post`, () => {
       currentPostId.value = posts.value[0]?.id ?? ``
 
     if (!loaded?.length)
-      void documentRepo.saveAll(posts.value)
+      void documentRepo.saveAll(posts.value).catch(reportSaveFailure)
 
     persistReady = true
   })
@@ -136,7 +170,7 @@ export const usePostStore = defineStore(`post`, () => {
       editorStore.flushContentToPostStore()
       persistAll.flush()
       persistDirty.flush()
-      void persistImmediately()
+      void persistImmediately().catch(reportSaveFailure)
     }
 
     const onVisibilityChange = () => {
@@ -159,7 +193,7 @@ export const usePostStore = defineStore(`post`, () => {
     persistDirty.cancel()
     dirtyPostIds.clear()
     posts.value = normalizePosts(nextPosts)
-    void documentRepo.saveAll(posts.value)
+    void documentRepo.saveAll(posts.value).catch(reportSaveFailure)
   }
 
   async function replacePostsAndPersist(nextPosts: Post[]): Promise<void> {
@@ -230,7 +264,7 @@ export const usePostStore = defineStore(`post`, () => {
       if (!posts.value.some(p => p.id === currentPostId.value))
         currentPostId.value = posts.value[Math.max(0, posts.value.length - 1)]?.id ?? ``
 
-      persistImmediately()
+      void persistImmediately().catch(reportSaveFailure)
       return
     }
 
@@ -248,7 +282,7 @@ export const usePostStore = defineStore(`post`, () => {
 
     posts.value.splice(idx, 1)
     currentPostId.value = posts.value[Math.min(idx, posts.value.length - 1)]?.id ?? ``
-    persistImmediately()
+    void persistImmediately().catch(reportSaveFailure)
   }
 
   const updatePostParentId = (postId: string, parentId: string | null) => {
@@ -297,5 +331,6 @@ export const usePostStore = defineStore(`post`, () => {
     replacePosts,
     replacePostsAndPersist,
     persistImmediately,
+    restoreArticle,
   }
 })

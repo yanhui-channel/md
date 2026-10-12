@@ -13,6 +13,7 @@ import {
   Trash2,
 } from '@lucide/vue'
 import { downloadMD } from '@/services/export'
+import { useEditorStore } from '@/stores/editor'
 import { usePostStore } from '@/stores/post'
 import { useTemplateStore } from '@/stores/template'
 import { useUIStore } from '@/stores/ui'
@@ -41,6 +42,18 @@ function onPostMenuOpenChange(postId: string, open: boolean) {
 
 function closePostMenu() {
   postSliderMenu.closeMenu()
+}
+
+async function exportPost(id: string) {
+  try {
+    const post = postStore.getPostById(id)
+    if (post) {
+      const snapshot = useEditorStore().captureMarkdown(post)
+      downloadMD(snapshot.markdown, snapshot.title)
+    }
+    closePostMenu()
+  }
+  catch (error) { toast.error(error instanceof Error ? error.message : String(error)) }
 }
 
 const { drag, actions } = props
@@ -270,7 +283,7 @@ function cancelInlineRename() {
             <History class="mr-2 size-4" /> {{ t('common.history') }}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem @click.stop="downloadMD(post.content, post.title); closePostMenu()">
+          <DropdownMenuItem @click.stop="exportPost(post.id)">
             <FileDown class="mr-2 size-4" /> {{ t('post.exportMd') }}
           </DropdownMenuItem>
           <DropdownMenuSeparator />

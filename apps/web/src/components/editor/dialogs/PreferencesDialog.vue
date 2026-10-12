@@ -36,7 +36,6 @@ const {
   showAIToolbox,
   viewMode,
   previewDevice,
-  enableImageReupload,
   enableScrollSync,
 } = storeToRefs(uiStore)
 
@@ -166,21 +165,6 @@ function onLocaleChange(value: string) {
             class="shrink-0"
             :model-value="showAIToolbox"
             @update:model-value="showAIToolbox = $event"
-          />
-        </div>
-
-        <div class="flex items-center justify-between gap-4 py-3">
-          <div class="min-w-0 space-y-0.5">
-            <Label for="pref-image-reupload">{{ t('preferences.imageReupload.label') }}</Label>
-            <p class="text-xs text-muted-foreground">
-              {{ t('preferences.imageReupload.hint') }}
-            </p>
-          </div>
-          <Switch
-            id="pref-image-reupload"
-            class="shrink-0"
-            :model-value="enableImageReupload"
-            @update:model-value="enableImageReupload = $event"
           />
         </div>
       </TabsContent>

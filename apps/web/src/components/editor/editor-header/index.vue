@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import { Copy, Loader2, Menu, Palette } from '@lucide/vue'
 import { defineAsyncComponent } from 'vue'
-import { useEditorRefresh } from '@/composables/useEditorRefresh'
 import { delay } from '@/lib/delay'
-import { generatePureHTML, processClipboardContent } from '@/services/export'
+import { processClipboardContent } from '@/services/export'
+import { buildPublicationHtml, purePublicationHtml } from '@/services/export/html'
+import { preparePublication } from '@/services/export/publication'
 import { useEditorStore } from '@/stores/editor'
-import { useExportStore } from '@/stores/export'
-import { useRenderStore } from '@/stores/render'
-import { useThemeStore } from '@/stores/theme'
+import { usePostStore } from '@/stores/post'
 import { useUIStore } from '@/stores/ui'
 import EditDropdown from './EditDropdown.vue'
 import FileDropdown from './FileDropdown.vue'
@@ -30,15 +29,7 @@ const ShareDialog = defineAsyncComponent(() => import('./ShareDialog.vue'))
 const PdfExportDialog = defineAsyncComponent(() => import('@/components/editor/dialogs/PdfExportDialog.vue'))
 
 const editorStore = useEditorStore()
-const themeStore = useThemeStore()
-const renderStore = useRenderStore()
 const uiStore = useUIStore()
-const exportStore = useExportStore()
-const { editorRefresh } = useEditorRefresh()
-
-const { editor } = storeToRefs(editorStore)
-const { output } = storeToRefs(renderStore)
-const { primaryColor } = storeToRefs(themeStore)
 const { isOpenRightSlider, isShowSyncDialog, isShowAccountDialog, isShowShareDialog, isShowPdfExportDialog, isShowAboutDialog, isShowFundDialog, isShowEditorStateDialog, isShowPreferencesDialog, isShowMarkdownHelpDialog, isShowKeyboardShortcutsDialog, copyMode } = storeToRefs(uiStore)
 
 const isCopying = ref(false)
@@ -66,6 +57,7 @@ function fallbackCopyUsingExecCommand(htmlContent: string) {
   }
 
   const tempContainer = document.createElement(`div`)
+  const ranges = Array.from({ length: selection.rangeCount }, (_, i) => selection.getRangeAt(i).cloneRange())
   tempContainer.innerHTML = htmlContent
   tempContainer.style.position = `fixed`
   tempContainer.style.left = `-9999px`
@@ -92,6 +84,7 @@ function fallbackCopyUsingExecCommand(htmlContent: string) {
   finally {
     selection.removeAllRanges()
     tempContainer.remove()
+    ranges.forEach(range => selection.addRange(range))
   }
 
   return successful
@@ -99,117 +92,53 @@ function fallbackCopyUsingExecCommand(htmlContent: string) {
 
 async function copy() {
   isCopying.value = true
-
-  if (copyMode.value === `md`) {
-    try {
-      const mdContent = editor.value?.state.doc.toString() || ``
-      await copyContent(mdContent)
-      toast.success(t(`toast.copiedMarkdown`))
+  const mode = copyMode.value
+  let publication: Awaited<ReturnType<typeof preparePublication>> | undefined
+  try {
+    if (mode === 'md') {
+      const post = usePostStore().currentPost
+      if (!post)
+        return
+      const snapshot = editorStore.captureMarkdown(post)
+      await copyContent(snapshot.markdown)
+      toast.success(t('toast.copiedMarkdown'))
+      return
     }
-    catch (error) {
-      toast.error(t(`toast.copyFailed`, { message: normalizeErrorMessage(error) }))
-    }
-    finally {
-      isCopying.value = false
-    }
-    return
-  }
-
-  emit(`startCopy`)
-
-  setTimeout(() => {
-    nextTick(async () => {
+    publication = await preparePublication('light')
+    emit('startCopy')
+    const result = await processClipboardContent(publication.theme.settings.primaryColor, publication)
+    if (mode === 'txt') {
       try {
-        let processedClipboardContent: {
-          html: string
-          plainText: string
-          hasPendingAsyncContent: boolean
-        }
-
-        try {
-          processedClipboardContent = await processClipboardContent(primaryColor.value)
-        }
-        catch (error) {
-          toast.error(t(`toast.processHtmlFailed`, { message: normalizeErrorMessage(error) }))
-          editorRefresh()
-          return
-        }
-
-        if (processedClipboardContent.hasPendingAsyncContent) {
-          toast.warning(t(`toast.asyncContentPending`))
-        }
-
-        const clipboardDiv = document.getElementById(`output`)
-
-        if (!clipboardDiv) {
-          toast.error(t(`toast.outputAreaMissing`))
-          editorRefresh()
-          return
-        }
-
-        clipboardDiv.focus()
-        window.getSelection()?.removeAllRanges()
-
-        const temp = processedClipboardContent.html
-
-        if (copyMode.value === `txt`) {
-          try {
-            if (typeof ClipboardItem === `undefined`) {
-              throw new TypeError(`ClipboardItem is not supported in this browser.`)
-            }
-
-            const clipboardItem = new ClipboardItem({
-              'text/html': new Blob([temp], { type: `text/html` }),
-              'text/plain': new Blob([processedClipboardContent.plainText], { type: `text/plain` }),
-            })
-
-            await writeClipboardItems([clipboardItem])
-          }
-          catch (error) {
-            const fallbackSucceeded = fallbackCopyUsingExecCommand(temp)
-            if (!fallbackSucceeded) {
-              window.getSelection()?.removeAllRanges()
-              editorRefresh()
-              toast.error(t(`toast.copyFailedContactDev`, { message: normalizeErrorMessage(error) }))
-              return
-            }
-          }
-        }
-
-        if (copyMode.value === `html`) {
-          await copyContent(temp)
-        }
-        else if (copyMode.value === `html-without-style`) {
-          await copyContent(await generatePureHTML(editor.value!.state.doc.toString()))
-        }
-        else if (copyMode.value === `html-and-style`) {
-          await copyContent(exportStore.editorContent2HTML())
-        }
-
-        toast.success(
-          copyMode.value === `html`
-            ? t(`toast.copiedHtml`)
-            : t(`toast.copiedRendered`),
-        )
-        window.dispatchEvent(
-          new CustomEvent(`copyToMp`, {
-            detail: {
-              content: output.value,
-            },
-          }),
-        )
-        editorRefresh()
+        await writeClipboardItems([new ClipboardItem({
+          'text/html': new Blob([result.html], { type: 'text/html' }),
+          'text/plain': new Blob([result.plainText], { type: 'text/plain' }),
+        })])
       }
       catch (error) {
-        toast.error(t(`toast.copyFailed`, { message: normalizeErrorMessage(error) }))
-        editorRefresh()
+        if (!fallbackCopyUsingExecCommand(result.html))
+          throw error
       }
-      finally {
-        emit(`endCopy`)
-        isCopying.value = false
-      }
-    })
-  }, 350)
+    }
+    else if (mode === 'html-without-style') {
+      await copyContent(await purePublicationHtml(publication))
+    }
+    else if (mode === 'html-and-style') {
+      await copyContent(buildPublicationHtml(publication))
+    }
+    else {
+      await copyContent(result.html)
+    }
+    toast.success(t(mode === 'html' ? 'toast.copiedHtml' : 'toast.copiedRendered'))
+    if (result.hasLocalImages)
+      toast.warning(t('visual.wechatLocalImages'))
+    window.dispatchEvent(new CustomEvent('copyToMp', { detail: { content: result.html } }))
+  }
+  catch (error) { toast.error(t('toast.copyFailed', { message: normalizeErrorMessage(error) })) }
+  finally {
+    publication?.dispose()
+    emit('endCopy')
+    isCopying.value = false
+  }
 }
 
 function handleCopy(mode: string) {

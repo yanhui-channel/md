@@ -1,39 +1,16 @@
-import { stripUnresolvedAsyncPlaceholders, waitForPreviewReady } from '@/lib/preview/preview-ready'
-import { getHtmlContent, getShareExportStyles } from '@/services/export'
-import { useEditorStore } from '@/stores/editor'
-import { useRenderStore } from '@/stores/render'
-import { useUIStore } from '@/stores/ui'
+import { getHtmlContent } from '@/services/export/html-content'
+import { assertPublicationComplete, preparePublication } from '@/services/export/publication'
+import { scopeThemeCss, SHARE_SHELL_VARS_CSS } from '@/services/export/share-styles'
 
-/** Capture a light-theme share snapshot (re-renders temporarily if editor is in dark mode). */
+/** Local snapshot only; this does not enable or send a share. */
 export async function captureShareSnapshot(): Promise<{ bodyHtml: string, stylesHtml: string }> {
-  const renderStore = useRenderStore()
-  const editorStore = useEditorStore()
-  const uiStore = useUIStore()
-  const content = editorStore.getContent()
-  const rerenderForLight = uiStore.isDark
-  const shareThemeMode = `light` as const
-
-  if (rerenderForLight)
-    renderStore.render(content, { themeMode: shareThemeMode })
-
-  const ready = await waitForPreviewReady(undefined, { themeMode: shareThemeMode })
-
+  const publication = await preparePublication('light')
   try {
-    let bodyHtml = getHtmlContent({ themeMode: shareThemeMode })
-    if (!ready) {
-      const wrapper = document.createElement(`div`)
-      wrapper.innerHTML = bodyHtml
-      stripUnresolvedAsyncPlaceholders(wrapper)
-      bodyHtml = wrapper.innerHTML
-    }
-
+    assertPublicationComplete(publication)
     return {
-      bodyHtml,
-      stylesHtml: await getShareExportStyles(),
+      bodyHtml: getHtmlContent({ root: publication.root }),
+      stylesHtml: `<style>${SHARE_SHELL_VARS_CSS}\n${scopeThemeCss(publication.theme.css, '.share-content')}\n${publication.theme.codeCss}</style>`,
     }
   }
-  finally {
-    if (rerenderForLight)
-      renderStore.render(content, { themeMode: `dark` })
-  }
+  finally { publication.dispose() }
 }

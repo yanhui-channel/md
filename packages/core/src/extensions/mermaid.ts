@@ -13,6 +13,7 @@ import {
 import { simpleHash } from '../utils/basicHelpers'
 import { blockScanLimit, findAtLineStart } from '../utils/scan'
 import { createSVGCache } from '../utils/svgCache'
+import { uniqueSvgIds } from '../utils/svgIds'
 import { diagramCacheThemeSuffix, getMermaidThemeConfig } from './diagram-theme'
 
 let initPromise: Promise<typeof import('mermaid')['default']> | null = null
@@ -23,16 +24,6 @@ interface MermaidOptions {
 }
 
 type MermaidOptionsSource = MermaidOptions | (() => MermaidOptions | undefined)
-
-let optionsSource: MermaidOptionsSource | undefined
-
-function resolveOptions(): MermaidOptions | undefined {
-  return typeof optionsSource === `function` ? optionsSource() : optionsSource
-}
-
-function getDiagramMessages(): DiagramMessages {
-  return resolveDiagramMessages(resolveOptions()?.diagramMessages)
-}
 
 export async function initializeMermaid() {
   return getMermaid()
@@ -53,27 +44,30 @@ function buildCacheKey(code: string, themeMode?: DiagramThemeMode): string {
 }
 
 const svgCache = createSVGCache(50)
+let renderQueue: Promise<unknown> = Promise.resolve()
+let instance = 0
 
-async function renderMermaidSvg(code: string, themeMode?: DiagramThemeMode): Promise<string> {
+export async function renderMermaidSvg(code: string, themeMode?: DiagramThemeMode): Promise<string> {
   const cacheKey = buildCacheKey(code, themeMode)
-  const cached = svgCache.get(cacheKey)
-  if (cached)
-    return cached
-
-  const mermaid = await getMermaid()
-  mermaid.initialize(getMermaidThemeConfig(themeMode))
-  const result = await mermaid.render(`mermaid-svg-${cacheKey}`, code)
-  svgCache.set(cacheKey, result.svg)
-  return result.svg
+  const result = renderQueue.then(async () => {
+    const cached = svgCache.get(cacheKey)
+    if (cached)
+      return uniqueSvgIds(cached)
+    const mermaid = await getMermaid()
+    mermaid.initialize(getMermaidThemeConfig(themeMode))
+    const rendered = await mermaid.render(`mermaid-svg-${++instance}`, code)
+    svgCache.set(cacheKey, rendered.svg)
+    return uniqueSvgIds(rendered.svg)
+  })
+  renderQueue = result.catch(() => {})
+  return result
 }
 
-function renderMermaid(id: string, code: string, cacheKey: string, themeMode?: DiagramThemeMode) {
+function renderMermaid(id: string, code: string, themeMode: DiagramThemeMode | undefined, messages: DiagramMessages) {
   if (typeof window === `undefined`)
     return
 
   const handleResult = (svg: string) => {
-    svgCache.set(cacheKey, svg)
-
     const el = document.getElementById(id)
     if (el) {
       el.innerHTML = svg
@@ -86,8 +80,10 @@ function renderMermaid(id: string, code: string, cacheKey: string, themeMode?: D
     const el = document.getElementById(id)
     if (el) {
       const detail = error instanceof Error ? error.message : String(error)
-      const messages = getDiagramMessages()
-      el.innerHTML = `<div style="color: red; padding: 10px; border: 1px solid red;">${formatDiagramMessage(messages.mermaidError, detail)}</div>`
+      const message = document.createElement('div')
+      message.style.cssText = 'color: red; padding: 10px; border: 1px solid red;'
+      message.textContent = formatDiagramMessage(messages.mermaidError, detail)
+      el.replaceChildren(message)
       el.setAttribute(MD_DIAGRAM_STATE_ATTR, MD_DIAGRAM_STATE.error)
     }
   }
@@ -98,7 +94,7 @@ function renderMermaid(id: string, code: string, cacheKey: string, themeMode?: D
 }
 
 export function markedMermaid(options?: MermaidOptionsSource): MarkedExtension {
-  optionsSource = options
+  const resolveOptions = () => typeof options === 'function' ? options() : options
   const className = 'mermaid-diagram'
 
   return {
@@ -124,16 +120,16 @@ export function markedMermaid(options?: MermaidOptionsSource): MarkedExtension {
           const currentOptions = resolveOptions()
           const themeMode = currentOptions?.themeMode
           const cacheKey = buildCacheKey(code, themeMode)
+          const messages = resolveDiagramMessages(currentOptions?.diagramMessages)
 
           const cached = svgCache.get(cacheKey)
           if (cached) {
-            return `<!--mermaid-start--><div class="${className}">${cached}</div><!--mermaid-end-->`
+            return `<!--mermaid-start--><div class="${className}" ${diagramStateAttr(MD_DIAGRAM_STATE.ready)}>${uniqueSvgIds(cached)}</div><!--mermaid-end-->`
           }
 
-          const id = `mermaid-${cacheKey}`
-          renderMermaid(id, code, cacheKey, themeMode)
+          const id = `mermaid-${++instance}`
+          renderMermaid(id, code, themeMode, messages)
 
-          const messages = getDiagramMessages()
           return `<!--mermaid-start--><div id="${id}" class="${className}" ${diagramStateAttr(MD_DIAGRAM_STATE.loading)}>${messages.mermaidLoading}</div><!--mermaid-end-->`
         }),
       },

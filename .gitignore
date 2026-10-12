@@ -66,3 +66,7 @@ dev-dist
 # uTools build artifacts
 apps/utools/dist
 apps/utools/release
+
+# Private local article seeds, never part of the public fork
+apps/web/src/yanhui/assets.json
+apps/web/src/yanhui/sample.md

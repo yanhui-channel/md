@@ -1,10 +1,15 @@
 import type { HeadingLevel, HeadingStyles, HeadingStyleType, PerThemeSettings, PerThemeSettingsMap, ThemeName } from '@md/shared/configs'
-import { applyTheme } from '@md/core/theme'
+import type { Ref } from 'vue'
+import type { ThemeSnapshot } from '@/lib/visual/theme-snapshot'
+import { applyTheme, getThemeInjector } from '@md/core/theme'
 import { defaultPerThemeSettings, defaultStyleConfig, widthOptions } from '@md/shared/configs'
 import { isMarketplaceThemeKey } from '@md/shared/types'
+import { renderSnapshotCss, validateThemeSnapshot } from '@/lib/visual/theme-snapshot'
 import { store } from '@/storage'
 import { addPrefix } from '@/storage/prefix'
 import { useCssEditorStore } from '@/stores/cssEditor'
+import { usePostStore } from '@/stores/post'
+import { YANHUI_THEME, yanhuiDefaults } from '@/yanhui/defaults'
 
 /**
  * Theme and style configuration.
@@ -14,7 +19,29 @@ import { useCssEditorStore } from '@/stores/cssEditor'
  * isShowLineNumber, isMacCodeBlock); switching themes loads the matching config.
  */
 export const useThemeStore = defineStore(`theme`, () => {
-  const theme = store.reactive<ThemeName>(addPrefix(`theme`), defaultStyleConfig.theme)
+  const baseTheme = store.reactive<ThemeName>(addPrefix(`theme`), defaultStyleConfig.theme)
+  const postStore = usePostStore()
+  const snapshots = new Map<string, Ref<ThemeSnapshot>>()
+  const restoredTheme = computed(() => {
+    const key = postStore.currentPost?.themeId
+    if (!key)
+      return null
+    if (!snapshots.has(key)) {
+      const raw = store.getSync(key)
+      if (!raw)
+        return null
+      snapshots.set(key, store.reactive(key, validateThemeSnapshot(JSON.parse(raw))))
+    }
+    return snapshots.get(key)!.value
+  })
+  const theme = computed<ThemeName>({
+    get: () => restoredTheme.value?.id as ThemeName ?? baseTheme.value,
+    set: (value) => {
+      if (postStore.currentPost)
+        postStore.currentPost.themeId = undefined
+      baseTheme.value = value
+    },
+  })
 
   const themeSettings = store.reactive<PerThemeSettingsMap>(
     addPrefix(`themeSettings`),
@@ -22,7 +49,7 @@ export const useThemeStore = defineStore(`theme`, () => {
   )
 
   const currentSettings = computed<PerThemeSettings>(() => {
-    return themeSettings.value[theme.value] ?? defaultPerThemeSettings()
+    return restoredTheme.value?.settings ?? themeSettings.value[theme.value] ?? defaultPerThemeSettings()
   })
 
   const primaryColor = computed<string>({
@@ -83,6 +110,7 @@ export const useThemeStore = defineStore(`theme`, () => {
   })
 
   function setThemeField<K extends keyof PerThemeSettings>(key: K, value: PerThemeSettings[K]) {
+    if (restoredTheme.value) { restoredTheme.value.settings[key] = value; return }
     const t = theme.value
     const existing = themeSettings.value[t] ?? defaultPerThemeSettings()
     themeSettings.value = {
@@ -91,12 +119,22 @@ export const useThemeStore = defineStore(`theme`, () => {
     }
   }
 
-  const isCiteStatus = store.reactive(`isCiteStatus`, defaultStyleConfig.isCiteStatus)
-  const isCountStatus = store.reactive(`isCountStatus`, defaultStyleConfig.isCountStatus)
-  const isUseIndent = store.reactive(addPrefix(`use_indent`), false)
-  const isUseJustify = store.reactive(addPrefix(`use_justify`), false)
-  const legend = store.reactive(`legend`, defaultStyleConfig.legend)
-  const previewWidth = store.reactive(`previewWidth`, widthOptions[0].value)
+  function articleOption<K extends 'citeStatus' | 'countStatus' | 'indent' | 'justify' | 'legend' | 'previewWidth'>(key: K, storageKey: string, fallback: ThemeSnapshot[K]) {
+    const original = store.reactive(storageKey, fallback)
+    return computed<ThemeSnapshot[K]>({
+      get: () => restoredTheme.value?.[key] ?? original.value,
+      set: (value) => {
+        if (restoredTheme.value)
+          restoredTheme.value[key] = value; else original.value = value
+      },
+    })
+  }
+  const isCiteStatus = articleOption('citeStatus', 'isCiteStatus', defaultStyleConfig.isCiteStatus)
+  const isCountStatus = articleOption('countStatus', 'isCountStatus', defaultStyleConfig.isCountStatus)
+  const isUseIndent = articleOption('indent', addPrefix('use_indent'), false)
+  const isUseJustify = articleOption('justify', addPrefix('use_justify'), false)
+  const legend = articleOption('legend', 'legend', defaultStyleConfig.legend)
+  const previewWidth = articleOption('previewWidth', 'previewWidth', widthOptions[0].value)
 
   const fontSizeNumber = computed(() => Number(fontSize.value.replace(`px`, ``)))
 
@@ -108,13 +146,18 @@ export const useThemeStore = defineStore(`theme`, () => {
   const toggleUseJustify = useToggle(isUseJustify)
 
   const resetStyle = () => {
-    themeSettings.value = {
-      ...themeSettings.value,
-      [theme.value]: defaultPerThemeSettings(),
+    if (restoredTheme.value) {
+      restoredTheme.value.settings = theme.value === YANHUI_THEME ? yanhuiDefaults() : defaultPerThemeSettings()
+    }
+    else {
+      themeSettings.value = {
+        ...themeSettings.value,
+        [theme.value]: theme.value === YANHUI_THEME ? yanhuiDefaults() : defaultPerThemeSettings(),
+      }
     }
     isCiteStatus.value = defaultStyleConfig.isCiteStatus
     isCountStatus.value = defaultStyleConfig.isCountStatus
-    legend.value = defaultStyleConfig.legend
+    legend.value = theme.value === YANHUI_THEME ? 'none' : defaultStyleConfig.legend
     isUseIndent.value = false
     isUseJustify.value = false
   }
@@ -132,6 +175,16 @@ export const useThemeStore = defineStore(`theme`, () => {
   }
 
   const updateCodeTheme = () => {
+    document.querySelector('#article-code-theme')?.remove()
+    if (restoredTheme.value) {
+      document.querySelector('#hljs')?.remove()
+      const style = document.createElement('style')
+      style.id = 'article-code-theme'
+      const css = restoredTheme.value.codeCss
+      style.textContent = `${css}\n${css.replace(/#output/g, '.visual-source-preview')}`
+      document.head.append(style)
+      return
+    }
     const cssUrl = codeBlockTheme.value
     const el = document.querySelector(`#hljs`)
 
@@ -152,6 +205,7 @@ export const useThemeStore = defineStore(`theme`, () => {
 
   const applyCurrentTheme = async () => {
     try {
+      if (restoredTheme.value) { getThemeInjector().inject(renderSnapshotCss(restoredTheme.value)); return }
       const cssEditorStore = useCssEditorStore()
       const customCSS = cssEditorStore.getCurrentTabContent()
 
@@ -185,7 +239,13 @@ export const useThemeStore = defineStore(`theme`, () => {
     }
   }
 
+  watch(() => postStore.currentPost?.themeId, () => {
+    void applyCurrentTheme()
+    updateCodeTheme()
+  })
+
   return {
+    restoredTheme,
     theme,
     themeSettings,
     fontFamily,

@@ -1,8 +1,8 @@
 import { sanitizeTitle } from '@md/shared/utils/basicHelpers'
 import { t } from '@/i18n/translate'
-import { waitForPreviewReady } from '@/lib/preview/preview-ready'
 import { EXPORT_LAYOUT_CSS } from './apply-export-layout'
 import { getHtmlContent } from './html-content'
+import { assertPublicationComplete, preparePublication } from './publication'
 import { getStylesToAdd, SHARE_SHELL_VARS_CSS } from './share-styles'
 
 export type PdfPageNumberFormat = `nOfM` | `n`
@@ -274,9 +274,16 @@ export function buildPageCss(
 
 /** Export PDF document (current theme system). */
 export async function exportPDF(title: string = `untitled`, options?: Partial<PdfExportOptions>) {
-  await waitForPreviewReady()
-  const htmlStr = getHtmlContent({ staticLayout: true })
-  const stylesToAdd = await getStylesToAdd()
+  const publication = await preparePublication('light')
+  let htmlStr: string
+  let stylesToAdd: string
+  try {
+    assertPublicationComplete(publication)
+    title = publication.snapshot.title
+    htmlStr = getHtmlContent({ root: publication.root, staticLayout: true })
+    stylesToAdd = await getStylesToAdd(publication.theme)
+  }
+  finally { publication.dispose() }
   const safeTitle = sanitizeTitle(title)
   const resolved = normalizePdfExportOptions(options)
   const pageCss = buildPageCss(resolved, title, resolvePdfSiteFooterUrl())

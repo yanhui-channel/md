@@ -73,6 +73,10 @@ const headingLevels = computed(() => baseHeadingLevels.map((item, index) => ({
 
 function textColorChanged(color: string) {
   colorState.textColor = color
+  if (editorStore.activeTarget === 'visual' && editorStore.visualEditor) {
+    editorStore.visualEditor.chain().focus().setColor(color).run()
+    return
+  }
   const editorView = editor.value as EditorView
   if (!editor.value)
     return

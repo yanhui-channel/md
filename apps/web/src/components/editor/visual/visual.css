@@ -1,0 +1,415 @@
+.visual-editor {
+  background: #fff;
+  color: #30343b;
+  min-width: 0;
+}
+.visual-view-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e2e7ed;
+  font: 12px/1.5 system-ui, sans-serif;
+  color: #58606c;
+}
+.visual-mode {
+  display: flex;
+  gap: 2px;
+}
+.visual-mode button {
+  font-size: 12px;
+  gap: 6px;
+}
+.visual-mode [aria-pressed='true'],
+.visual-toolbar [aria-pressed='true'] {
+  background: #eaf1ff;
+  color: #245fbe;
+}
+.visual-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #fff;
+  border-bottom: 1px solid #e2e7ed;
+  padding: 6px 10px;
+  font: 12px/1.5 system-ui, sans-serif;
+  color: #30343b;
+}
+.visual-object-slot {
+  min-height: 36px;
+}
+.visual-tool-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+.visual-toolbar button {
+  width: 32px;
+  height: 34px;
+  flex: 0 0 32px;
+  border-radius: 4px;
+}
+.visual-toolbar select,
+.visual-toolbar input:not([type='color']) {
+  height: 30px;
+  border: 1px solid #dce1e7;
+  border-radius: 4px;
+  background: #fff;
+  color: #30343b;
+  padding: 2px 5px;
+  min-width: 0;
+}
+.visual-toolbar select {
+  max-width: 86px;
+}
+.visual-number {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin: 0 3px;
+  white-space: nowrap;
+}
+.visual-number input {
+  width: 49px;
+}
+.visual-color {
+  width: 28px;
+  height: 28px;
+  padding: 2px;
+  border: 1px solid #dce1e7;
+  border-radius: 4px;
+  background: #fff;
+}
+.visual-link-form {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+.visual-link-form input {
+  flex: 1;
+}
+.visual-link-form button {
+  width: auto;
+  flex-basis: auto;
+}
+.visual-error {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+  background: #fff4f2;
+  color: #9d2923;
+  font: 13px/1.6 system-ui, sans-serif;
+  overflow-wrap: anywhere;
+}
+.visual-error-text {
+  color: #9d2923;
+}
+.visual-editor .tiptap {
+  outline: none;
+  min-height: 420px;
+  padding: 24px 26px 100px;
+  color: #30343b;
+  font-family: var(--md-font-family, system-ui);
+  font-size: var(--md-font-size, 17px);
+  line-height: var(--md-line-height, 2.05);
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+.visual-editor .tiptap p {
+  margin: calc(22px * var(--md-block-spacing, 1)) 0;
+}
+.visual-editor .tiptap h1 {
+  font-size: 26px;
+  line-height: 1.5;
+  font-weight: 700;
+  margin: 0 0 22px;
+  color: #202124;
+}
+.visual-editor .tiptap h2 {
+  font-size: 21px;
+  line-height: 1.65;
+  margin: 46px 0 18px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e8edf2;
+  font-weight: 700;
+  color: #202124;
+}
+.visual-editor .tiptap h3,
+.visual-editor .tiptap h4,
+.visual-editor .tiptap h5,
+.visual-editor .tiptap h6 {
+  font-size: 18px;
+  line-height: 1.8;
+  margin: 30px 0 14px;
+  font-weight: 650;
+}
+.visual-editor .tiptap a {
+  color: var(--md-link-color, #245fbe);
+  text-decoration: underline;
+  cursor: text;
+}
+.visual-editor .tiptap strong {
+  font-weight: 700;
+  color: #202124;
+}
+.visual-editor .tiptap ul,
+.visual-editor .tiptap ol {
+  padding-left: 26px;
+  margin: 20px 0;
+  list-style: disc;
+}
+.visual-editor .tiptap ol {
+  list-style: decimal;
+}
+.visual-editor .tiptap li {
+  display: list-item;
+  margin: 10px 0;
+}
+.visual-editor .tiptap li p {
+  margin: 4px 0;
+}
+.visual-editor .tiptap li::marker {
+  font-size: 14px;
+  color: #3574d3;
+}
+.visual-editor .tiptap li:nth-child(4n + 2)::marker {
+  color: #28864b;
+}
+.visual-editor .tiptap li:nth-child(4n + 3)::marker {
+  color: #9d7000;
+}
+.visual-editor .tiptap li:nth-child(4n + 4)::marker {
+  color: #d34336;
+}
+.visual-editor .tiptap blockquote {
+  margin: 24px 0;
+  padding: 8px 14px;
+  background: #f5f7fa;
+  border: 1px solid #e2e7ed;
+  border-radius: 4px;
+  color: #505762;
+}
+.visual-editor .tiptap blockquote p {
+  margin: 4px 0;
+}
+.visual-editor .tiptap pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: #f5f7fa;
+  padding: 16px;
+  font: 14px/1.7 ui-monospace, monospace;
+  border-radius: 4px;
+}
+.visual-editor .tiptap table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  font-size: 14px;
+  line-height: 1.8;
+}
+.visual-editor .tiptap td,
+.visual-editor .tiptap th {
+  border: 1px solid #dce1e7;
+  padding: 8px 10px;
+  min-width: 60px;
+  vertical-align: top;
+  position: relative;
+}
+.visual-editor .tiptap th {
+  background: #f5f7fa;
+  font-weight: 600;
+}
+.visual-editor .tiptap td p,
+.visual-editor .tiptap th p {
+  margin: 0;
+}
+.visual-editor .tableWrapper {
+  overflow-x: auto;
+  max-width: 100%;
+  margin: 24px 0;
+}
+.visual-editor .column-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  bottom: 0;
+  width: 4px;
+  background: #4285f4;
+  pointer-events: none;
+}
+.visual-editor .resize-cursor {
+  cursor: col-resize;
+}
+.visual-editor .selectedCell {
+  background: #eaf1ff;
+}
+.visual-editor .tiptap img {
+  max-width: 100%;
+  height: auto;
+}
+.visual-editor .ProseMirror-selectednode {
+  outline: 2px solid #4285f4;
+  outline-offset: 2px;
+}
+.visual-editor .yh-title-label {
+  color: #737d8c;
+  font-size: 12px;
+  line-height: 1.5;
+  margin-bottom: 10px;
+  user-select: none;
+}
+.visual-editor .yh-heading-line ~ .ProseMirror-separator,
+.visual-editor .yh-heading-line ~ .ProseMirror-trailingBreak {
+  display: none !important;
+}
+.visual-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 0 18px;
+  margin: 0 0 22px;
+  border-bottom: 1px solid #e8edf2;
+  color: #697386;
+  font: 13px/1.6 system-ui, sans-serif;
+  user-select: none;
+}
+.visual-brand img {
+  width: 26px;
+  height: 24px;
+  object-fit: contain;
+}
+.visual-source-block {
+  margin: 24px 0;
+  border: 1px solid #e2e7ed;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.visual-source-block[data-kind='code'] {
+  background: #f6f8fa;
+  border-color: #e6ebf0;
+  border-radius: 6px;
+}
+.visual-source-block[data-kind='code'] .visual-source-bar {
+  padding: 8px 14px 0;
+  background: transparent;
+}
+.visual-code-dots {
+  display: inline-flex;
+  flex: 0 0 45px;
+  align-items: center;
+}
+.visual-code-language {
+  min-width: 0;
+  max-width: 150px;
+  background: transparent;
+  color: #58606c;
+  border: 0;
+  padding: 4px;
+  font: inherit;
+}
+.visual-code-language:focus-visible {
+  outline: 2px solid #4285f4;
+  border-radius: 4px;
+}
+.visual-source-block[data-kind='code'] .visual-source-preview {
+  padding: 0;
+}
+.visual-editor .tiptap .visual-source-block[data-kind='code'] pre {
+  padding: 14px;
+  background: transparent;
+  border: 0;
+  line-height: 1.85;
+  min-height: 52px;
+}
+.visual-source-block[data-kind='code'] .cm-editor {
+  background: transparent;
+}
+.visual-image {
+  margin: 24px 0;
+  min-height: 24px;
+}
+.visual-source-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 10px;
+  background: #f5f7fa;
+  color: #58606c;
+  font: 12px/1.5 system-ui, sans-serif;
+}
+.visual-source-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+.visual-source-actions button {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+}
+.visual-source-actions button:hover {
+  background: #e2e7ed;
+}
+.visual-source-actions button:focus-visible {
+  outline: 2px solid #4285f4;
+}
+.visual-source-input {
+  border-bottom: 1px solid #e2e7ed;
+}
+.visual-source-input .cm-content {
+  padding: 12px;
+  min-height: 90px;
+  font: 14px/1.7 ui-monospace, monospace;
+}
+.visual-source-input .cm-scroller {
+  max-height: 340px;
+  overflow: auto;
+}
+.visual-source-preview {
+  padding: 12px;
+  overflow-x: auto;
+}
+.visual-source-preview svg {
+  max-width: 100%;
+  height: auto;
+  margin: auto;
+}
+.visual-editor .tiptap .visual-source-preview pre {
+  margin: 0;
+}
+@media (max-width: 768px) {
+  .visual-object-slot {
+    min-height: 40px;
+  }
+  .visual-object-slot .visual-tool-row {
+    height: 40px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex-wrap: nowrap;
+  }
+  .visual-object-slot .visual-tool-row > * {
+    flex-shrink: 0;
+  }
+  .visual-editor .tiptap {
+    padding: 20px 18px 110px;
+  }
+  .visual-toolbar {
+    padding: 6px;
+  }
+  .visual-toolbar button {
+    width: 34px;
+    height: 36px;
+    flex-basis: 34px;
+  }
+  .visual-view-bar {
+    padding: 6px 10px;
+  }
+}

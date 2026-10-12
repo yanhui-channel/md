@@ -98,6 +98,7 @@ function cancelForm() {
 }
 
 function applyTemplate(template: Template) {
+  editorStore.visualSession?.commitPending(true)
   const currentPost = postStore.currentPost
   if (currentPost) {
     postStore.updatePostContent(currentPost.id, template.content)

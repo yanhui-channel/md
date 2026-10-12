@@ -2,7 +2,6 @@ import type { PreviewDevice } from './png-capture'
 import { sanitizeTitle } from '@md/shared/utils/basicHelpers'
 import { downloadFile } from '@md/shared/utils/fileHelpers'
 import { delay } from '@/lib/delay'
-import { waitForPreviewReady } from '@/lib/preview/preview-ready'
 import { createOffScreenPreview, getPngCaptureOptions } from './png-capture'
 
 /** Presets offered in the export menu, in CSS pixels. */
@@ -143,13 +142,12 @@ export async function exportPNGSegments(
   title: string = `untitled`,
   options: ExportPNGSegmentsOptions,
 ): Promise<number> {
-  await waitForPreviewReady()
-
   const offScreen = await createOffScreenPreview(options.previewDevice)
   if (!offScreen)
     return 0
 
   try {
+    title = offScreen.title
     await delay(100)
 
     const blocks = collectBlocks(resolveBlockContainer(offScreen.content))

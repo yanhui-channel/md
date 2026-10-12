@@ -1,4 +1,7 @@
 /** Off-screen PNG host; prefixed styles must not match the live preview. */
+import type { Publication } from './publication'
+import { renderSnapshotCss } from '@/lib/visual/theme-snapshot'
+
 export const PNG_CAPTURE_HOST = `[data-png-export-host]`
 
 /** Replaces #output in theme CSS for the cloned capture root. */
@@ -154,12 +157,13 @@ const PNG_PREVIEW_SHELL_CSS = `
 `
 
 /** Scoped theme + layout styles for off-screen PNG capture. */
-export async function getPngCaptureStyles(): Promise<string> {
+export async function getPngCaptureStyles(publication?: Publication): Promise<string> {
   const themeStyle = document.querySelector(`#md-theme`) as HTMLStyleElement
-  if (!themeStyle?.textContent)
+  const themeCss = publication ? renderSnapshotCss(publication.theme) : themeStyle?.textContent
+  if (!themeCss)
     return ``
 
-  const isDarkApp = document.documentElement.classList.contains(`dark`)
+  const isDarkApp = publication ? publication.themeMode === 'dark' : document.documentElement.classList.contains(`dark`)
   const shellVars = isDarkApp
     ? `${PNG_CAPTURE_HOST} { --foreground: 0 0% 98%; --blockquote-background: #212121; }`
     : `${PNG_CAPTURE_HOST} { --foreground: 0 0% 3.9%; --blockquote-background: #f7f7f7; }`
@@ -167,12 +171,15 @@ export async function getPngCaptureStyles(): Promise<string> {
   const parts = [
     `<style>${shellVars}</style>`,
     `<style>${PNG_PREVIEW_SHELL_CSS}</style>`,
-    `<style>${scopeThemeToCaptureRoot(themeStyle.textContent)}</style>`,
+    `<style>${scopeThemeToCaptureRoot(themeCss)}</style>`,
     `<style>${getScopedExportLayoutCss(PNG_CAPTURE_HOST)}</style>`,
   ]
 
   const hljsLink = document.querySelector(`#hljs`) as HTMLLinkElement
-  if (hljsLink) {
+  if (publication) {
+    parts.push(`<style>@scope (${PNG_CAPTURE_HOST}) { ${scopeThemeToCaptureRoot(publication.theme.codeCss)} }</style>`)
+  }
+  else if (hljsLink) {
     try {
       const hljsText = await (await fetch(hljsLink.href)).text()
       parts.push(`<style>@scope (${PNG_CAPTURE_HOST}) { ${hljsText} }</style>`)
@@ -182,8 +189,10 @@ export async function getPngCaptureStyles(): Promise<string> {
     }
   }
 
-  const useNightPreview = isDarkApp
-    && document.getElementById(`output-wrapper`)?.classList.contains(`output_night`)
+  const useNightPreview = publication
+    ? publication.themeMode === 'dark'
+    : isDarkApp
+      && document.getElementById(`output-wrapper`)?.classList.contains(`output_night`)
   if (useNightPreview) {
     parts.push(
       `<style>${PNG_CAPTURE_HOST} .output_night .preview { background-color: #191919; }</style>`,

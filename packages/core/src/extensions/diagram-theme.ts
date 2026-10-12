@@ -65,6 +65,8 @@ export function getMermaidThemeConfig(themeMode?: DiagramThemeMode) {
   const isDark = resolveDiagramThemeMode(themeMode) === `dark`
   return {
     startOnLoad: false,
+    securityLevel: 'strict' as const,
+    suppressErrorRendering: true,
     theme: isDark ? `dark` as const : `default` as const,
     themeVariables: isDark ? { darkMode: true } : { darkMode: false },
   }

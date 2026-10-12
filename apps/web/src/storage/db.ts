@@ -1,9 +1,11 @@
 import type { DBSchema, IDBPDatabase, IDBPTransaction, StoreNames } from 'idb'
+import type { StoredAsset } from './repositories/assets'
 import { openDB } from 'idb'
 import {
   DB_NAME,
   DB_VERSION,
   LEGACY_EMOJI_PACK_KEY,
+  STORE_ASSETS,
   STORE_CACHE,
   STORE_DOCUMENTS,
   STORE_META,
@@ -20,6 +22,7 @@ export interface StoredDocument {
   updateDatetime: string
   parentId?: string | null
   collapsed?: boolean
+  themeId?: string
 }
 
 export interface KVRecord {
@@ -33,6 +36,7 @@ export interface MetaRecord {
 }
 
 interface MdDBSchema extends DBSchema {
+  assets: { key: string, value: StoredAsset }
   documents: {
     key: string
     value: StoredDocument
@@ -73,6 +77,8 @@ export async function upgradeDB(
   _newVersion: number | null,
   transaction: UpgradeTx,
 ): Promise<void> {
+  if (oldVersion < 5 && !db.objectStoreNames.contains(STORE_ASSETS))
+    db.createObjectStore(STORE_ASSETS, { keyPath: 'path' })
   if (oldVersion < 1) {
     if (!db.objectStoreNames.contains(STORE_DOCUMENTS)) {
       const docStore = db.createObjectStore(STORE_DOCUMENTS, { keyPath: `id` })
@@ -111,6 +117,13 @@ export async function upgradeDB(
 export function getDatabase(): Promise<MdDatabase> {
   if (!dbPromise) {
     dbPromise = openDB<MdDBSchema>(DB_NAME, DB_VERSION, {
+      blocked() { window.dispatchEvent(new Event('md:storage-blocked')) },
+      blocking() {
+        void dbPromise?.then(db => db.close())
+        dbPromise = null
+        window.dispatchEvent(new Event('md:storage-reload'))
+      },
+      terminated() { dbPromise = null },
       // Delegate to the exported upgradeDB so the versionchange transaction
       // idb provides is reused. Opening db.transaction(...) here would try to
       // start a new transaction while the versionchange one is still running
@@ -118,7 +131,7 @@ export function getDatabase(): Promise<MdDatabase> {
       async upgrade(db, oldVersion, newVersion, transaction) {
         await upgradeDB(db, oldVersion, newVersion, transaction as UpgradeTx)
       },
-    })
+    }).catch((error) => { dbPromise = null; throw error })
   }
   return dbPromise
 }

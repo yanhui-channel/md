@@ -1,5 +1,9 @@
 import type { PdfExportOptions } from '@/services/export'
+import { sanitizeTitle } from '@md/shared/utils/basicHelpers'
+import { downloadFile } from '@md/shared/utils/fileHelpers'
 import { t } from '@/i18n/translate'
+import { collectImageReferences } from '@/lib/visual/assets'
+import { exportArticleBundle } from '@/services/article-bundle'
 import {
   DEFAULT_PNG_SEGMENT_HEIGHT,
   downloadMD,
@@ -8,8 +12,10 @@ import {
   exportPNG,
   exportPNGSegments,
   exportPureHTML,
-  getHtmlContent,
 } from '@/services/export'
+import { preparePublication } from '@/services/export/publication'
+import { LOCAL_ASSET_PATTERN } from '@/storage/repositories/assets'
+import { useEditorStore } from './editor'
 import { usePostStore } from './post'
 import { useUIStore } from './ui'
 
@@ -18,14 +24,17 @@ export const useExportStore = defineStore(`export`, () => {
   const postStore = usePostStore()
   const uiStore = useUIStore()
 
-  const editorContent2HTML = () => getHtmlContent()
+  async function runExport(action: () => Promise<unknown>) {
+    try { await action() }
+    catch (error) { toast.error(error instanceof Error ? error.message : String(error)) }
+  }
 
   const exportEditorContent2HTML = async () => {
     const currentPost = postStore.currentPost
     if (!currentPost)
       return
 
-    await exportHTML(currentPost.title)
+    await runExport(() => exportHTML(currentPost.title))
   }
 
   const exportEditorContent2PureHTML = (content: string) => {
@@ -33,7 +42,7 @@ export const useExportStore = defineStore(`export`, () => {
     if (!currentPost)
       return
 
-    exportPureHTML(content, currentPost.title)
+    return runExport(() => exportPureHTML(content, currentPost.title))
   }
 
   const downloadAsCardImage = async () => {
@@ -41,9 +50,9 @@ export const useExportStore = defineStore(`export`, () => {
     if (!currentPost)
       return
 
-    await exportPNG(currentPost.title, {
+    await runExport(() => exportPNG(currentPost.title, {
       previewDevice: uiStore.previewDevice,
-    })
+    }))
   }
 
   const downloadAsSegmentedImages = async (maxSegmentHeight = DEFAULT_PNG_SEGMENT_HEIGHT) => {
@@ -77,19 +86,37 @@ export const useExportStore = defineStore(`export`, () => {
     if (!currentPost)
       return
 
-    await exportPDF(currentPost.title, options)
+    await runExport(() => exportPDF(currentPost.title, options))
   }
 
-  const exportEditorContent2MD = (content: string) => {
+  const exportEditorContent2MD = async (_content: string) => {
     const currentPost = postStore.currentPost
     if (!currentPost)
       return
 
-    downloadMD(content, currentPost.title)
+    await runExport(async () => {
+      const snapshot = useEditorStore().captureMarkdown(currentPost)
+      downloadMD(snapshot.markdown, snapshot.title)
+      if (collectImageReferences(snapshot.markdown).some(path => LOCAL_ASSET_PATTERN.test(path)))
+        toast.info('Markdown 不包含图片文件；跨设备请使用文章备份 ZIP')
+    })
   }
 
+  const exportBundle = () => runExport(async () => {
+    const publication = await preparePublication()
+    try {
+      const blob = await exportArticleBundle(publication)
+      const url = URL.createObjectURL(blob)
+      downloadFile(url, `${sanitizeTitle(publication.snapshot.title)}.zip`)
+      setTimeout(() => URL.revokeObjectURL(url), 10000)
+      if (publication.external.length || publication.missing.length)
+        toast.warning('备份含外链或缺失图片，无法完全离线使用')
+    }
+    finally { publication.dispose() }
+  })
+
   return {
-    editorContent2HTML,
+    exportBundle,
     exportEditorContent2HTML,
     exportEditorContent2PureHTML,
     downloadAsCardImage,

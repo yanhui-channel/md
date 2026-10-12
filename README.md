@@ -1,10 +1,18 @@
+# 衍辉 channel 原位编辑器
+
+本仓库是 [doocs/md](https://github.com/doocs/md) 的个人定制 fork，提供右侧可视化编辑、专属排版、自动标题编号、代码高亮和本地文章备份。
+
+**[启动说明、已完成功能与后续路线图](./YANHUI.md)**。当前为本地试用版，GitHub 保存程序代码，不同步你的文章；下方在线地址和发布徽章属于上游项目。
+
+---
+
 <div align="center">
 
 [![doocs-md](https://cdn-doocs.oss-cn-shenzhen.aliyuncs.com/gh/doocs/md/images/logo-2.png)](https://github.com/doocs/md)
 
 </div>
 
-<h1 align="center">微信 Markdown 编辑器</h1>
+<h2 align="center">微信 Markdown 编辑器</h2>
 
 <div align="center">
 

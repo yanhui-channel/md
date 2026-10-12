@@ -3,8 +3,11 @@ import type { DiagramDownloadOverlay } from '@/lib/preview/diagram-download'
 import { CONTENT_FONT_LANG } from '@/i18n/constants'
 import { setupDiagramDownloadOverlay } from '@/lib/preview/diagram-download'
 import { setupEmojiHydration } from '@/lib/preview/emoji-hydrate'
+import { hydrateLocalImages } from '@/lib/visual/assets'
+import { useEditorStore } from '@/stores/editor'
 import { useRenderStore } from '@/stores/render'
 import { useUIStore } from '@/stores/ui'
+import VisualEditor from './visual/VisualEditor.vue'
 
 const props = defineProps<{
   backLight: boolean
@@ -15,6 +18,7 @@ const props = defineProps<{
 const { t } = useI18n()
 const renderStore = useRenderStore()
 const uiStore = useUIStore()
+const editorStore = useEditorStore()
 
 const { output } = storeToRefs(renderStore)
 const { isDark, isMobile, viewMode, previewDevice } = storeToRefs(uiStore)
@@ -64,6 +68,14 @@ watch(viewMode, () => {
 
 let diagramOverlay: DiagramDownloadOverlay | null = null
 let emojiCleanup: (() => void) | null = null
+let imageCleanup: (() => void) | undefined
+watch(output, async () => {
+  imageCleanup?.()
+  await nextTick()
+  const root = document.getElementById('output')
+  if (root)
+    imageCleanup = hydrateLocalImages(root)
+})
 
 // Pause bar injection for the entire duration of isCoping so that
 // processClipboardContent mutations never re-inject bars, and resume
@@ -81,6 +93,8 @@ onMounted(() => {
   nextTick(() => {
     const outputEl = document.getElementById(`output`)
     if (outputEl) {
+      imageCleanup?.()
+      imageCleanup = hydrateLocalImages(outputEl)
       diagramOverlay = setupDiagramDownloadOverlay(outputEl)
       emojiCleanup = setupEmojiHydration(outputEl)
       void hydratePreviewDiagrams().catch((error) => {
@@ -93,6 +107,7 @@ onMounted(() => {
 onUnmounted(() => {
   diagramOverlay?.cleanup()
   emojiCleanup?.()
+  imageCleanup?.()
 })
 
 defineExpose({
@@ -119,7 +134,9 @@ defineExpose({
             effectivePreviewWidth === 'w-[375px]' ? 'max-w-full' : '',
           ]"
         >
+          <VisualEditor />
           <section
+            v-show="!editorStore.visualEditing"
             id="output"
             class="w-full"
             :lang="CONTENT_FONT_LANG"

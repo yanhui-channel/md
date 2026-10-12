@@ -1,10 +1,7 @@
+import type { Publication } from './publication'
 import { inlineEmojiImagesAsBase64 } from '@/lib/export/inlineEmojiImages'
-import { stripUnresolvedAsyncPlaceholders, waitForPreviewReady } from '@/lib/preview/preview-ready'
-import { useEditorStore } from '@/stores/editor'
-import { useRenderStore } from '@/stores/render'
-import { useThemeStore } from '@/stores/theme'
-import { useUIStore } from '@/stores/ui'
 import { createEmptyNode, modifyHtmlStructure, promoteSvgHtmlLabels, sanitizeHtmlCssForJuice, solveWeChatImage, stripFontFamilyForJuiceFallback, stripInvalidCssForJuice } from './clipboard-dom'
+import { assertPublicationComplete, preparePublication } from './publication'
 import { getStylesToAdd } from './share-styles'
 import { prepareDiagramSvgsForWeChat, prepareMathFormulasForWeChat, sanitizeSvgsForWeChat } from './wechat-svg'
 
@@ -42,36 +39,17 @@ async function mergeCss(html: string): Promise<string> {
  * Diagrams are exported in light theme structure, but dark ink colors are remapped
  * to currentColor so WeChat reader dark mode can follow text color.
  */
-export async function processClipboardContent(primaryColor: string) {
-  const outputElement = document.getElementById(`output`)
-  if (!outputElement) {
-    return {
-      html: ``,
-      plainText: ``,
-      hasPendingAsyncContent: false,
-    }
-  }
-
-  const renderStore = useRenderStore()
-  const editorStore = useEditorStore()
-  const themeStore = useThemeStore()
-  const uiStore = useUIStore()
-  const content = editorStore.getContent()
-  const wechatThemeMode = `light` as const
-  const rerenderForLight = uiStore.isDark
-
-  if (rerenderForLight)
-    renderStore.render(content, { themeMode: wechatThemeMode, force: true })
-
-  const previewReady = await waitForPreviewReady(undefined, { themeMode: wechatThemeMode })
-
+export async function processClipboardContent(primaryColor: string, prepared?: Publication) {
+  const publication = prepared ?? await preparePublication('light')
+  const themeStore = publication.theme.settings
+  primaryColor = themeStore.primaryColor
   try {
-    const clipboardDiv = outputElement.cloneNode(true) as HTMLElement
-    stripUnresolvedAsyncPlaceholders(clipboardDiv)
+    assertPublicationComplete(publication)
+    const clipboardDiv = publication.root.cloneNode(true) as HTMLElement
     prepareDiagramSvgsForWeChat(clipboardDiv)
     await inlineEmojiImagesAsBase64(clipboardDiv)
 
-    const stylesToAdd = await getStylesToAdd()
+    const stylesToAdd = await getStylesToAdd(publication.theme)
 
     if (stylesToAdd) {
       clipboardDiv.innerHTML = stylesToAdd + clipboardDiv.innerHTML
@@ -121,11 +99,12 @@ export async function processClipboardContent(primaryColor: string) {
     return {
       html: clipboardDiv.innerHTML,
       plainText: clipboardDiv.textContent || ``,
-      hasPendingAsyncContent: !previewReady,
+      hasPendingAsyncContent: false,
+      hasLocalImages: !!publication.root.querySelector('img[data-local-src]'),
     }
   }
   finally {
-    if (rerenderForLight)
-      renderStore.render(content, { themeMode: `dark`, force: true })
+    if (!prepared)
+      publication.dispose()
   }
 }

@@ -550,10 +550,14 @@ function clearSelection() {
 async function exportSelected() {
   if (!selectedPostIds.value.length)
     return
-  const toExport = selectedPostIds.value.map((id) => {
-    const p = postStore.getPostById(id)!
-    return { title: p.title, content: p.content }
-  })
+  let toExport
+  try {
+    toExport = selectedPostIds.value.map((id) => {
+      const snapshot = editorStore.captureMarkdown(postStore.getPostById(id)!)
+      return { title: snapshot.title, content: snapshot.markdown }
+    })
+  }
+  catch (error) { toast.error(String(error)); return }
   if (toExport.length === 1) {
     downloadMD(toExport[0].content, toExport[0].title)
   }
@@ -573,7 +577,14 @@ async function exportAll() {
   if (!posts.value.length)
     return
   postSliderMenu.closeMenu()
-  const toExport = posts.value.map(p => ({ title: p.title, content: p.content }))
+  let toExport
+  try {
+    toExport = posts.value.map((post) => {
+      const snapshot = editorStore.captureMarkdown(post)
+      return { title: snapshot.title, content: snapshot.markdown }
+    })
+  }
+  catch (error) { toast.error(String(error)); return }
   if (toExport.length === 1) {
     downloadMD(toExport[0].content, toExport[0].title)
   }

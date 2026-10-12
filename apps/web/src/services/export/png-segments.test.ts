@@ -1,6 +1,8 @@
 import type { BlockBounds } from './png-segments'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { planSegments } from './png-segments'
+
+vi.mock('./publication', () => ({ preparePublication: vi.fn(), assertPublicationComplete: vi.fn() }))
 
 /** Build bounds for consecutive blocks of the given heights, separated by `gap`. */
 function stack(heights: number[], gap = 0): BlockBounds[] {

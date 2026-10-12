@@ -1,0 +1,163 @@
+/* Yanhui channel, doocs/md theme. Body settings follow the native controls. */
+#output, #output section {
+  color: #30343b;
+  background: #ffffff;
+  font-family: var(--md-font-family);
+  font-size: var(--md-font-size);
+  line-height: var(--md-line-height);
+  letter-spacing: 0;
+  overflow-wrap: break-word;
+}
+h1 {
+  display: block;
+  margin: 0 0 22px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #202124;
+  font-size: 26px;
+  line-height: 1.5;
+  font-weight: 700;
+  text-align: left;
+  letter-spacing: 0;
+}
+h2 {
+  display: block;
+  margin: calc(46px * var(--md-block-spacing)) 0 calc(18px * var(--md-block-spacing));
+  padding: 0 0 10px;
+  border: 0;
+  border-bottom: 1px solid #e8edf2;
+  background: none;
+  color: #202124;
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.65;
+  text-align: left;
+  letter-spacing: 0;
+}
+h3, h4, h5, h6 {
+  padding: 0;
+  border: 0;
+  background: none;
+  margin: calc(30px * var(--md-block-spacing)) 0 calc(14px * var(--md-block-spacing));
+  color: #24272d;
+  font-size: 18px;
+  line-height: 1.8;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+h4, h5, h6 { font-size: 17px; }
+p {
+  color: #30343b;
+  margin: calc(22px * var(--md-block-spacing)) 0;
+  line-height: var(--md-line-height);
+  letter-spacing: 0;
+}
+strong { color: #202124; font-weight: 700; }
+a { color: var(--md-link-color); text-decoration: none; overflow-wrap: anywhere; }
+blockquote {
+  margin: calc(24px * var(--md-block-spacing)) 0;
+  padding: 3px 0 3px 16px;
+  background: var(--md-blockquote-background, transparent);
+  border: 0;
+  border-left: 2px solid #d9e3f0;
+  border-radius: 0;
+  font-style: normal;
+  color: #505762;
+}
+blockquote p { color: #505762; margin: 8px 0; letter-spacing: 0; }
+ol, ul {
+  padding: 0;
+  margin: calc(20px * var(--md-block-spacing)) 0;
+  list-style: none;
+  color: #30343b;
+}
+li {
+  display: block;
+  margin: calc(10px * var(--md-block-spacing)) 0;
+  padding: 0;
+  color: #30343b;
+  line-height: var(--md-line-height);
+  letter-spacing: 0;
+}
+li.yh-marked { padding-left: 25px; }
+li p { margin: 8px 0; }
+li ol, li ul { margin: 8px 0; }
+.yh-list-marker {
+  display: inline-block;
+  min-width: 25px;
+  margin-left: -25px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--md-primary-color);
+}
+.yh-heading-marker { color: var(--md-primary-color); }
+li:nth-child(4n + 2) > .yh-list-marker,
+h2:nth-of-type(4n + 2) > .yh-heading-marker { color: #28864b; }
+li:nth-child(4n + 3) > .yh-list-marker,
+h2:nth-of-type(4n + 3) > .yh-heading-marker { color: #9d7000; }
+li:nth-child(4n + 4) > .yh-list-marker,
+h2:nth-of-type(4n + 4) > .yh-heading-marker { color: #d34336; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: calc(24px * var(--md-block-spacing)) 0;
+  font-size: 14px;
+  line-height: 1.8;
+  color: #30343b;
+}
+th, td {
+  border: 1px solid #e2e7ed;
+  padding: 9px 10px;
+  color: #30343b;
+  text-align: left;
+  vertical-align: top;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+th { background: #f5f7fa; font-weight: 650; }
+td { background: #ffffff; }
+th:first-child, td:first-child { min-width: 70px; }
+figure { margin: calc(28px * var(--md-block-spacing)) 0; }
+img { max-width: 100%; height: auto; margin: 0 auto; border-radius: 4px; }
+figcaption { font-size: 13px; line-height: 1.8; color: #6b7280; margin: 10px 0 0; }
+pre.code__pre, .hljs.code__pre {
+  background: #f6f8fa;
+  border: 1px solid #e6ebf0;
+  border-radius: 6px;
+  margin: calc(24px * var(--md-block-spacing)) 0;
+  font-size: 14px;
+  line-height: 1.85;
+  max-width: 100%;
+}
+pre.code__pre > code, .hljs.code__pre > code {
+  display: block;
+  padding: 14px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  background: transparent;
+  color: #30343b;
+}
+.codespan { color: #335a86; background: #f0f4f8; border: 0; padding: 2px 4px; }
+hr { border: 0; border-top: 1px solid #e8edf2; margin: 30px 0; height: 0; transform: none; }
+p.yh-brand {
+  padding: 0 0 18px;
+  margin: 0 0 28px;
+  border-bottom: 1px solid #edf0f3;
+  font-size: 13px;
+  color: #737d8c;
+  line-height: 26px;
+}
+.yh-brand img {
+  display: inline-block;
+  width: 26px;
+  height: 24px;
+  margin: 0 9px 0 0;
+  border: 0;
+  vertical-align: middle;
+}

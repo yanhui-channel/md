@@ -2,6 +2,7 @@ import { hydratePendingInfographicDiagrams } from '@md/core/extensions'
 import { applyExportLayout } from './apply-export-layout'
 
 export interface GetHtmlContentOptions {
+  root?: HTMLElement
   themeMode?: `light` | `dark`
   /** Wrap wide tables/code for static exports (PDF/HTML). */
   staticLayout?: boolean
@@ -9,7 +10,7 @@ export interface GetHtmlContentOptions {
 
 /** Get export HTML content. */
 export function getHtmlContent(options?: GetHtmlContentOptions): string {
-  const element = document.querySelector(`#output`)
+  const element = options?.root ?? document.querySelector(`#output`)
   if (!element)
     return ``
   const clone = element.cloneNode(true) as HTMLElement

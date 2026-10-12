@@ -1,8 +1,10 @@
+import type { StoredAsset } from './assets'
+import type { ThemeSnapshot } from '@/lib/visual/theme-snapshot'
 import type { StoredDocument } from '@/storage/db'
 import type { Post } from '@/types/post'
 import { normalizePostHistory } from '@/lib/format/datetime'
 import { getDatabase } from '@/storage/db'
-import { LEGACY_POSTS_KEY, STORE_DOCUMENTS } from '@/storage/keys'
+import { LEGACY_POSTS_KEY, STORE_ASSETS, STORE_DOCUMENTS, STORE_SETTINGS } from '@/storage/keys'
 import { store } from '@/storage/manager'
 import { isStorageQuotaError, warnStorageQuota } from '@/storage/quota'
 import {
@@ -21,6 +23,7 @@ function toStored(post: Post): StoredDocument {
     updateDatetime: new Date(post.updateDatetime).toISOString(),
     parentId: post.parentId ?? null,
     collapsed: post.collapsed,
+    themeId: post.themeId,
   }
 }
 
@@ -34,6 +37,7 @@ function fromStored(doc: StoredDocument): Post {
     updateDatetime: new Date(doc.updateDatetime),
     parentId: doc.parentId ?? null,
     collapsed: doc.collapsed,
+    themeId: doc.themeId,
   }
 }
 
@@ -152,6 +156,28 @@ async function restorePagehideBackup(backup: { token: string | null, posts: Post
 }
 
 export const documentRepo = {
+  async importArticle(post: Post, assets: StoredAsset[], theme: ThemeSnapshot): Promise<void> {
+    return runSerialized(async () => {
+      if (useLegacyStorage || !post.themeId)
+        throw new Error('本地数据库不可用，无法恢复完整备份')
+      const db = await getDatabase()
+      const tx = db.transaction([STORE_DOCUMENTS, STORE_ASSETS, STORE_SETTINGS], 'readwrite')
+      void tx.done.catch(() => {})
+      try {
+        await tx.objectStore(STORE_DOCUMENTS).add(toStored(post))
+        await tx.objectStore(STORE_SETTINGS).add({ key: post.themeId, value: JSON.stringify(theme) })
+        for (const asset of assets) await tx.objectStore(STORE_ASSETS).put(asset)
+        await tx.done
+      }
+      catch (error) {
+        try { tx.abort() }
+        catch {}
+        await tx.done.catch(() => {})
+        throw error
+      }
+      cachedPosts?.push(post)
+    })
+  },
   async loadAll(): Promise<Post[]> {
     if (cachedPosts)
       return cachedPosts

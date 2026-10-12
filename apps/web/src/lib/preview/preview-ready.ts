@@ -12,6 +12,7 @@ const PREVIEW_POLL_INTERVAL_MS = 250
 const ASYNC_DIAGRAM_SELECTOR = `.mermaid-diagram, .plantuml-diagram, .infographic-diagram`
 
 export interface WaitForPreviewReadyOptions {
+  root?: HTMLElement
   themeMode?: `light` | `dark`
 }
 
@@ -49,15 +50,18 @@ export async function waitForPreviewReady(
   await nextTick()
   await nextTick()
 
-  const output = document.getElementById(`output`)
+  const output = options?.root ?? document.getElementById(`output`)
   if (!output)
     return false
 
   const infographicOptions = resolveInfographicOptions(options)
   const deadline = Date.now() + timeoutMs
+  const failed = () => !!output.querySelector(`[${MD_DIAGRAM_STATE_ATTR}="error"], [data-mjx-error], [data-mml-node="merror"]`)
 
   while (Date.now() < deadline) {
     hydratePendingInfographicDiagrams(output, infographicOptions)
+    if (failed())
+      return false
 
     if (!isDiagramStillLoading(output) && !isMathStillLoading(output))
       return true
@@ -66,7 +70,7 @@ export async function waitForPreviewReady(
   }
 
   hydratePendingInfographicDiagrams(output, infographicOptions)
-  return !isDiagramStillLoading(output) && !isMathStillLoading(output)
+  return !failed() && !isDiagramStillLoading(output) && !isMathStillLoading(output)
 }
 
 /** Strip unresolved async placeholders so copy/export omit loading text. */

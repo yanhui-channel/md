@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dialog'
 import { progress as Progress } from '@/components/ui/progress'
 import { useImageUploader } from '@/composables/useImageUploader'
+import { rewriteImageReferences } from '@/lib/visual/assets'
 import { useUIStore } from '@/stores/ui'
 
 const { t } = useI18n()
@@ -87,27 +88,21 @@ function handleFolderSelect(event: Event) {
  * Find a matching file in the folder for a path
  */
 function findMatchedFile(path: string): File | undefined {
-  const pathFileName = path.split(/[/\\]/).pop()!.toLowerCase()
-  const fileArray = folderFiles.value
-
-  // Round 1: exact filename match
-  for (const file of fileArray) {
-    if (file.name.toLowerCase() === pathFileName)
-      return file
-  }
-  // Round 2: match without extension
-  const pathBase = pathFileName.replace(/\.[^.]+$/, '')
-  for (const file of fileArray) {
-    const fileBase = file.name.toLowerCase().replace(/\.[^.]+$/, '')
-    if (fileBase === pathBase)
-      return file
-  }
-  return undefined
+  const normalized = path.replace(/\\/g, '/').replace(/^\.\//, '')
+  const exact = folderFiles.value.filter((file) => {
+    const candidate = file.webkitRelativePath || file.name
+    return candidate === normalized || candidate.endsWith(`/${normalized}`)
+  })
+  if (exact.length)
+    return exact.length === 1 ? exact[0] : undefined
+  const nameMatches = folderFiles.value.filter(file => file.name === normalized.split('/').pop())
+  return nameMatches.length === 1 ? nameMatches[0] : undefined
 }
 
 async function handleUpload() {
   if (!uiStore.localImageUploadData)
     return
+  const request = uiStore.localImageUploadData
 
   const pathsToUpload = Array.from(selectedPaths.value)
   const total = pathsToUpload.length
@@ -139,6 +134,7 @@ async function handleUpload() {
         url = await upload(file)
         fileUrlMap.set(file, url)
       }
+      if (uiStore.localImageUploadData !== request) { isUploading.value = false; return }
       uploadResults.value[path] = url
     }
     catch (err: unknown) {
@@ -153,14 +149,7 @@ function handleApply() {
   if (!uiStore.localImageUploadData)
     return
 
-  // Replace only image syntax `![alt](path)` paths with uploaded URLs
-  let content = uiStore.localImageUploadData.markdownContent
-  for (const [path, url] of Object.entries(uploadResults.value)) {
-    const escaped = path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    content = content
-      .replace(new RegExp(`(!\\[[^\\]]*\\]\\()${escaped}\\)`, 'g'), `$1${url})`)
-      .replace(new RegExp(`(!\\[[^\\]]*\\]\\(\\.\\/)${escaped}\\)`, 'g'), `$1${url})`)
-  }
+  const content = rewriteImageReferences(uiStore.localImageUploadData.markdownContent, uploadResults.value)
 
   uiStore.localImageUploadData = {
     markdownContent: content,
@@ -195,7 +184,7 @@ function onOpenChange(val: boolean) {
       <DialogHeader>
         <DialogTitle>{{ t('localImage.title') }}</DialogTitle>
         <DialogDescription>
-          {{ t('localImage.description') }}
+          {{ t('visual.localImportDescription') }}
         </DialogDescription>
       </DialogHeader>
 
@@ -241,6 +230,10 @@ function onOpenChange(val: boolean) {
         <Progress v-if="isUploading || progressValue > 0" :model-value="progressValue" class="h-1.5" />
 
         <label v-if="!isAllUploaded" class="block">
+          <input type="file" multiple accept="image/png,image/jpeg,image/gif,image/webp" class="hidden" @change="handleFolderSelect">
+          <Button variant="outline" class="w-full" as="span"><FileImage class="mr-2 h-4 w-4" />{{ t('visual.chooseImage') }}</Button>
+        </label>
+        <label v-if="!isAllUploaded" class="block">
           <input
             type="file"
             webkitdirectory
@@ -272,7 +265,7 @@ function onOpenChange(val: boolean) {
               {{ t('common.done') }}
             </Button>
             <Button variant="outline" @click="handleUpload">
-              {{ t('localImage.reupload') }}
+              {{ t('visual.retryImages') }}
             </Button>
           </div>
         </div>
@@ -286,7 +279,7 @@ function onOpenChange(val: boolean) {
               @click="handleUpload"
             >
               <Loader2 v-if="isUploading" class="mr-2 h-4 w-4 animate-spin" />
-              {{ isUploading ? t('common.uploading') : t('localImage.uploadImages') }}
+              {{ isUploading ? t('visual.saving') : t('visual.saveImages') }}
             </Button>
           </div>
         </div>

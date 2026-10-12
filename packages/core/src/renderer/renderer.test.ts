@@ -3,6 +3,16 @@ import { postProcessHtml, renderMarkdown } from '../utils/markdownHelpers'
 import { initRenderer } from './renderer-impl'
 
 describe('initRenderer', () => {
+  it('renders CJK punctuation inside bold without changing source text', () => {
+    const { html } = renderMarkdown('- **成本：**这项判断\n- **English** text\n  - **嵌套：**说明', initRenderer({}))
+    expect(html).toContain('<strong class="strong">成本：</strong>这项判断')
+    expect(html).toContain('<strong class="strong">嵌套：</strong>说明')
+    expect(html).toContain('<strong class="strong">English</strong>')
+    const literal = renderMarkdown('`**成本：**这项判断`\n\n\\*\\*成本：\\*\\*这项判断', initRenderer({})).html
+    expect(literal).not.toContain('<strong')
+    expect(literal).toContain('**成本：**这项判断')
+  })
+
   it('renders headings and paragraphs', () => {
     const renderer = initRenderer({})
     const { html } = renderMarkdown(`# Hello\n\nWorld`, renderer)

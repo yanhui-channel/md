@@ -105,7 +105,7 @@ function transform(legend: string, text: string | null, title: string | null, hr
   return ``
 }
 
-const macCodeSvg = `
+export const macCodeSvg = `
   <svg xmlns="http://www.w3.org/2000/svg" version="1.1" x="0px" y="0px" width="45px" height="13px" viewBox="0 0 450 130">
     <ellipse cx="50" cy="65" rx="50" ry="52" stroke="rgb(220,60,54)" stroke-width="2" fill="rgb(237,108,96)" />
     <ellipse cx="225" cy="65" rx="50" ry="52" stroke="rgb(218,151,33)" stroke-width="2" fill="rgb(247,193,81)" />
@@ -464,6 +464,20 @@ export function initRenderer(opts: IOpts = {}): RendererAPI {
   }
 
   markdownParser.use({ renderer })
+  // Chinese labels such as **成本：**正文 have no separating ASCII space.
+  markdownParser.use({ extensions: [{
+    name: 'cjkStrong',
+    level: 'inline',
+    start: src => src.indexOf('**'),
+    tokenizer(src) {
+      const match = /^\*\*([^*\n]*[\u3000-\u303F\uFF00-\uFFEF])\*\*(?=\p{Script=Han})/u.exec(src)
+      if (match)
+        return { type: 'cjkStrong', raw: match[0], tokens: this.lexer.inlineTokens(match[1]) }
+    },
+    renderer(token) {
+      return styledContent('strong', this.parser.parseInline(token.tokens ?? []))
+    },
+  }] })
   // Registry getter via closure avoids global state
   markdownParser.use(markedComponent(
     () => opts.components ?? getBuiltInRegistry(),

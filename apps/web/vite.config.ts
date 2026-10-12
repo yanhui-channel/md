@@ -9,7 +9,6 @@ import { visualizer } from 'rollup-plugin-visualizer'
 import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
 import { defineConfig, loadEnv } from 'vite'
-import { VitePluginRadar } from 'vite-plugin-radar'
 import vueDevTools from 'vite-plugin-vue-devtools'
 
 import { utoolsLocalAssetsPlugin } from './plugins/vite-plugin-utools-local-assets.ts'
@@ -121,9 +120,6 @@ export default defineConfig(({ mode }) => {
       tailwindcss(),
       mode === `development` && env.VITE_VUE_DEVTOOLS === `true` && vueDevTools({
         launchEditor: env.VITE_LAUNCH_EDITOR ?? `code`,
-      }),
-      !isUTools && VitePluginRadar({
-        analytics: { id: `G-7NZL3PZ0NK` },
       }),
       ...(process.env.ANALYZE === `true`
         ? [visualizer({ emitFile: true, filename: `stats.html` }) as Plugin]

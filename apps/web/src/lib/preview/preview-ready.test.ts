@@ -26,7 +26,7 @@ describe(`waitForPreviewReady`, () => {
     const ready = await waitForPreviewReady(20_000)
     const elapsed = Date.now() - started
 
-    expect(ready).toBe(true)
+    expect(ready).toBe(false)
     expect(elapsed).toBeLessThan(1_000)
 
     output.remove()

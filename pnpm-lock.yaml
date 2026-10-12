@@ -317,6 +317,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@md/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       hono:
         specifier: ^4.13.13
         version: 4.13.13
@@ -753,6 +756,9 @@ importers:
       uuid:
         specifier: ^14.0.2
         version: 14.0.2
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.5
     devDependencies:
       '@md/config':
         specifier: workspace:*

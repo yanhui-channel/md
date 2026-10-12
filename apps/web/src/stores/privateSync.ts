@@ -3,7 +3,7 @@ import type { PrivateIdentity } from '@/services/private-sync/client'
 import type { PrivateSyncStatus } from '@/services/private-sync/coordinator'
 import type { PrivateSyncRecord } from '@/storage/repositories/private-sync'
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { onScopeDispose, ref } from 'vue'
 import { captureStoredArticleTheme } from '@/lib/visual/capture-theme'
 import { PRIVATE_SYNC_ENABLED } from '@/services/account/config'
 import { PrivateSyncClient, PrivateSyncError } from '@/services/private-sync/client'
@@ -15,6 +15,7 @@ import { fromStored } from '@/storage/repositories/document-model'
 import { documentRepo, isUsingLegacyDocumentStorage } from '@/storage/repositories/documents'
 import { inspectPrivateDocuments } from '@/storage/repositories/private-document-writes'
 import { applyRemote, getLocalDraft, getSyncRecord, listSyncRecords, rebaseLocal, rememberConflict, saveLocalArticle, selectArticle } from '@/storage/repositories/private-sync'
+import { useCssEditorStore } from './cssEditor'
 import { useEditorStore } from './editor'
 import { usePostStore } from './post'
 import { useThemeStore } from './theme'
@@ -33,9 +34,14 @@ export const usePrivateSyncStore = defineStore('privateSync', () => {
   const paused = ref(false)
   let coordinator: ReturnType<typeof createPrivateSyncCoordinator> | undefined
   let initialized = false
+  let initializing: Promise<void> | undefined
+  let pauseVersion = 0
+  let retryInitialization = false
+  let retryTimer: ReturnType<typeof setTimeout> | undefined
+  let initializationFailures = 0
   let savedUi = ''
   const isComposing = () => Boolean(useEditorStore().visualSession?.isComposing() || useEditorStore().editor?.composing)
-  const stamp = () => JSON.stringify({ posts: usePostStore().posts, source: useEditorStore().getContent(), theme: useThemeStore().restoredTheme ?? useThemeStore().$state })
+  const stamp = () => JSON.stringify({ posts: usePostStore().posts, source: useEditorStore().getContent(), theme: useThemeStore().restoredTheme ?? useThemeStore().$state, css: useCssEditorStore().getCurrentTabContent() })
   async function save() {
     if (isComposing())
       throw new Error('composition_active')
@@ -44,10 +50,13 @@ export const usePrivateSyncStore = defineStore('privateSync', () => {
     const editor = useEditorStore()
     editor.flushContentToPostStore()
     await editor.visualSession?.flush()
+    const savingUi = stamp()
     await usePostStore().persistImmediately()
     if (isComposing())
       throw new Error('composition_active')
-    savedUi = stamp()
+    if (savingUi !== stamp())
+      throw new Error('local_conflict')
+    savedUi = savingUi
   }
   function failed(reason: unknown) {
     status.value = 'attention'
@@ -111,18 +120,32 @@ export const usePrivateSyncStore = defineStore('privateSync', () => {
       },
     })
   }
-  async function initialize() {
+  function initialize(): Promise<void> {
     if (!PRIVATE_SYNC_ENABLED)
-      return
+      return Promise.resolve()
+    if (!initializing)
+      initializing = initializeOnce().finally(() => { initializing = undefined })
+    return initializing
+  }
+  function onSaved(event: Event) {
+    const { id, historyOnly } = (event as CustomEvent).detail
+    // The periodic local history backup must not restart the content idle timer.
+    if (!historyOnly)
+      coordinator?.notifySaved(id)
+    void refresh().catch(failed)
+  }
+  async function initializeOnce() {
+    const version = pauseVersion
+    clearTimeout(retryTimer)
+    retryInitialization = false
     coordinator?.dispose()
     coordinator = undefined
     try {
       if (!initialized) {
         initialized = true
-        window.addEventListener('md:private-saved', (event) => {
-          coordinator?.notifySaved((event as CustomEvent).detail.id)
-          void refresh().catch(failed)
-        })
+        window.addEventListener('md:private-saved', onSaved)
+        window.addEventListener('online', recoverInitialization)
+        document.addEventListener('visibilitychange', recoverInitialization)
       }
       identity.value = await client.me()
       const previous = await getMeta('private:active-vault')
@@ -132,12 +155,31 @@ export const usePrivateSyncStore = defineStore('privateSync', () => {
       vault.value = (await client.readVault()).state
       if (vault.value?.vaultId !== identity.value.vaultId)
         throw new Error('vault_changed')
+      if (version !== pauseVersion)
+        return
       connect()
       await refresh()
       coordinator!.notifySaved('')
+      initializationFailures = 0
     }
-    catch (reason) { failed(reason) }
+    catch (reason) {
+      retryInitialization = reason instanceof PrivateSyncError && reason.code === 'network_unavailable'
+      failed(reason)
+      if (retryInitialization && !paused.value)
+        retryTimer = setTimeout(recoverInitialization, [5000, 15000, 60000, 300000][Math.min(initializationFailures++, 3)])
+    }
   }
+  function recoverInitialization() {
+    if (retryInitialization && !paused.value && navigator.onLine && document.visibilityState === 'visible')
+      void initialize()
+  }
+  onScopeDispose(() => {
+    clearTimeout(retryTimer)
+    coordinator?.dispose()
+    window.removeEventListener('md:private-saved', onSaved)
+    window.removeEventListener('online', recoverInitialization)
+    document.removeEventListener('visibilitychange', recoverInitialization)
+  })
   async function acceptVault() {
     if (!identity.value || !changedVault.value)
       return
@@ -180,6 +222,10 @@ export const usePrivateSyncStore = defineStore('privateSync', () => {
   }
   async function syncNow() {
     try {
+      const version = pauseVersion
+      await initializing
+      if (version !== pauseVersion)
+        return
       if (!coordinator || paused.value)
         await initialize()
       if (identity.value && !changedVault.value && !paused.value)
@@ -188,7 +234,7 @@ export const usePrivateSyncStore = defineStore('privateSync', () => {
     }
     catch (reason) { failed(reason) }
   }
-  function pause() { coordinator?.pause(); paused.value = true; status.value = 'local' }
+  function pause() { pauseVersion++; clearTimeout(retryTimer); coordinator?.pause(); paused.value = true; status.value = 'local' }
   async function logout() {
     pause()
     try { await save(); await client.logout(); identity.value = null; error.value = 'local_copies_retained' }

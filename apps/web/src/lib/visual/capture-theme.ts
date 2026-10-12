@@ -3,6 +3,7 @@ import type { ThemeSnapshot } from './theme-snapshot'
 import { buildThemeCSS } from '@md/core/theme'
 import { defaultPerThemeSettings } from '@md/shared/configs'
 import { getActivePinia } from 'pinia'
+import { PRIVATE_SYNC_ENABLED } from '@/services/account/config'
 import { getDatabase } from '@/storage/db'
 import { getLocalDraft } from '@/storage/repositories/private-sync'
 import { useCssEditorStore } from '@/stores/cssEditor'
@@ -14,13 +15,18 @@ import { validateThemeSnapshot } from './theme-snapshot'
 
 export async function captureThemeSnapshot(): Promise<ThemeSnapshot> {
   const store = useThemeStore()
-  if (store.restoredTheme)
-    return JSON.parse(JSON.stringify(store.restoredTheme))
+  if (store.restoredTheme) {
+    const snapshot = JSON.parse(JSON.stringify(store.restoredTheme))
+    snapshot.codeCss = await store.resolveCodeCss(store.restoredTheme)
+    return snapshot
+  }
   const settings: PerThemeSettings = JSON.parse(JSON.stringify({ ...defaultPerThemeSettings(), ...store.themeSettings[store.theme] }))
+  const customCSS = useCssEditorStore().getCurrentTabContent()
   const snapshot: ThemeSnapshot = {
     id: store.theme,
     settings,
-    css: buildThemeCSS({ themeName: store.theme, themeCSS: useMarketplaceStore().getInstalledThemeCss(store.theme), customCSS: useCssEditorStore().getCurrentTabContent(), variables: { ...settings, isUseIndent: store.isUseIndent, isUseJustify: store.isUseJustify } }, false),
+    css: buildThemeCSS({ themeName: store.theme, themeCSS: useMarketplaceStore().getInstalledThemeCss(store.theme), customCSS: PRIVATE_SYNC_ENABLED ? undefined : customCSS, variables: { ...settings, isUseIndent: store.isUseIndent, isUseJustify: store.isUseJustify } }, false),
+    customCss: PRIVATE_SYNC_ENABLED ? customCSS : undefined,
     codeCss: localCodeCss,
     previewWidth: store.previewWidth,
     legend: store.legend,
@@ -40,6 +46,9 @@ export async function captureThemeSnapshot(): Promise<ThemeSnapshot> {
 
 export async function captureStoredArticleTheme(postId: string): Promise<ThemeSnapshot> {
   const posts = getActivePinia() ? usePostStore() : null
+  const pending = posts?.getPendingTheme?.(postId)
+  if (pending)
+    return validateThemeSnapshot(await pending)
   if (posts?.currentPost?.id === postId) {
     const signature = () => JSON.stringify({ post: posts.currentPost, theme: useThemeStore().restoredTheme ?? useThemeStore().$state, css: useCssEditorStore().cssContentConfig })
     const before = signature()

@@ -1,5 +1,5 @@
 import type { ThemeSnapshot } from '@md/shared/utils/article-theme'
-import { generateCSSVariables, processCSS } from '@md/core/theme'
+import { generateCSSVariables, processCSS, wrapCSSWithScope } from '@md/core/theme'
 import { assertNoCssResources, themeSchema } from '@md/shared/utils/article-theme'
 
 export type { ThemeSnapshot } from '@md/shared/utils/article-theme'
@@ -64,11 +64,13 @@ export function validateArticleCss(css: string, code = false): string {
 export function validateThemeSnapshot(value: unknown): ThemeSnapshot {
   const theme = themeSchema.parse(value)
   theme.css = validateArticleCss(theme.css)
+  if (theme.customCss !== undefined)
+    theme.customCss = validateArticleCss(wrapCSSWithScope(theme.customCss, '#output'))
   theme.codeCss = validateArticleCss(theme.codeCss, true)
   theme.settings.codeBlockTheme = `${import.meta.env.BASE_URL}yanhui-code.css`
   return theme
 }
 
 export function renderSnapshotCss(snapshot: ThemeSnapshot): string {
-  return processCSS(`${snapshot.css}\n${generateCSSVariables({ ...snapshot.settings, isUseIndent: snapshot.indent, isUseJustify: snapshot.justify })}`)
+  return processCSS(`${snapshot.css}\n${wrapCSSWithScope(snapshot.customCss ?? '', '#output')}\n${generateCSSVariables({ ...snapshot.settings, isUseIndent: snapshot.indent, isUseJustify: snapshot.justify })}`)
 }

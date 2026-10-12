@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { addImage, call, edit, PrivateApi, start, upload } from './fixtures/private-api'
+import { addImage, edit, PrivateApi, start, upload } from './fixtures/private-api'
 
 test('savedArticleSurvivesOfflineReloadWithLocalMathAndNoApiCache', async ({ page, context }, testInfo) => {
   const api = new PrivateApi(); await api.attach(context); await start(page)
@@ -28,8 +28,13 @@ test('savedArticleSurvivesOfflineReloadWithLocalMathAndNoApiCache', async ({ pag
   await edit(page, '# Offline\n\noffline-marker-456')
   await page.reload(); await expect(page.locator('.visual-editor .tiptap')).toContainText('offline-marker-456')
   await context.setOffline(false)
-  await call(page, 'privateSync', 'syncNow')
-  expect([...api.articles.values()].some(a => a.article.markdown.includes('offline-marker-456'))).toBe(true)
+  await expect.poll(async () => ({
+    uploaded: [...api.articles.values()].some(a => a.article.markdown.includes('offline-marker-456')),
+    state: await page.evaluate(() => {
+      const sync = (document.querySelector('#app') as any).__vue_app__.config.globalProperties.$pinia._s.get('privateSync')
+      return { identity: !!sync.identity, status: sync.status, error: sync.error, paused: sync.paused, locks: !!navigator.locks, online: navigator.onLine, visibility: document.visibilityState, records: sync.records }
+    }),
+  }), { timeout: 45000 }).toMatchObject({ uploaded: true })
   expect(api.externalRequests).toEqual([])
   expect(api.pageErrors).toEqual([])
 })

@@ -38,9 +38,9 @@ privateRoutes.put('/articles/:id', async (c) => {
   const request = parseCommitRequest(JSON.parse(new TextDecoder('utf-8', { fatal: true, ignoreBOM: false }).decode(await boundedBody(c.req.raw, MAX_SYNC_JSON))))
   if (request.article.id !== c.req.param('id'))
     throw new SyncError('article_id_mismatch', 422)
-  return c.json(await commitArticle(c.env, request))
+  return c.json(await commitArticle(c.env, c.req.header('x-vault-id') ?? '', request))
 })
-privateRoutes.put('/assets/:name', async c => c.json(await storeAsset(c.env, `assets/${c.req.param('name')}`, await boundedBody(c.req.raw, MAX_SYNC_ASSET))))
+privateRoutes.put('/assets/:name', async c => c.json(await storeAsset(c.env, c.req.header('x-vault-id') ?? '', `assets/${c.req.param('name')}`, await boundedBody(c.req.raw, MAX_SYNC_ASSET))))
 privateRoutes.get('/assets/:name', async (c) => {
   const asset = await readAsset(c.env, `assets/${c.req.param('name')}`, c.req.query('head') ?? '')
   return new Response(new Uint8Array(asset.bytes).buffer, { headers: { 'Content-Type': asset.mime, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } })

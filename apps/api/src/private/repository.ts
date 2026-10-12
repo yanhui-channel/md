@@ -105,14 +105,18 @@ export async function readAsset(env: PrivateEnv, path: string, head: string): Pr
   return { bytes, mime: asset.mime }
 }
 
-export async function commitArticle(env: PrivateEnv, value: CommitArticleRequest): Promise<CommitArticleResult> {
+export async function commitArticle(env: PrivateEnv, expectedVaultId: string, value: CommitArticleRequest): Promise<CommitArticleResult> {
   const request = parseCommitRequest(value)
   const { article, operationId, baseRevision } = request
   const digest = await articleDigest(article)
   const vaultId = await repositoryIdentity(env)
+  if (vaultId !== expectedVaultId)
+    throw new SyncError('vault_changed', 409)
   await verifyAssetProofs(env, vaultId, article.assets)
   for (let attempt = 0; attempt < 3; attempt++) {
     const source = await snapshot(env)
+    if (source.vault.vaultId !== expectedVaultId)
+      throw new SyncError('vault_changed', 409)
     const exists = source.vault.entries.some(e => e.id === article.id)
     if (!exists && (source.files.has(`articles/${article.id}/meta.json`) || source.files.has(`articles/${article.id}/article.md`)))
       throw new SyncError('unindexed_article', 422)

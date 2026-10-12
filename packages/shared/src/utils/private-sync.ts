@@ -51,6 +51,7 @@ export function parsePrivateArticle(input: unknown): PrivateArticle {
   if (bytes > MAX_SYNC_JSON || bytes + article.assets.reduce((sum, a) => sum + a.size, 0) > MAX_SYNC_EXPANDED)
     throw new Error('Article exceeds sync size limit')
   assertNoCssResources(article.theme.css)
+  assertNoCssResources(article.theme.customCss ?? '')
   assertNoCssResources(article.theme.codeCss)
   return article
 }

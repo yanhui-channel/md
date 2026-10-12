@@ -35,8 +35,8 @@ export class PrivateSyncClient {
   }
 
   async readArticle(id: string, head: string) { return parseStoredArticle(await (await this.request(`articles/${encodeURIComponent(id)}?head=${encodeURIComponent(head)}`)).json()) }
-  async uploadAsset(asset: PrivateAsset, bytes: Blob): Promise<PrivateAsset> {
-    const result = privateAssetSchema.parse(await (await this.request(asset.path, { method: 'PUT', body: bytes, headers: { 'Content-Type': asset.mime } })).json())
+  async uploadAsset(asset: PrivateAsset, bytes: Blob, vaultId: string): Promise<PrivateAsset> {
+    const result = privateAssetSchema.parse(await (await this.request(asset.path, { method: 'PUT', body: bytes, headers: { 'Content-Type': asset.mime, 'x-vault-id': vaultId } })).json())
     if (result.path !== asset.path || result.size !== asset.size || result.mime !== asset.mime || !result.blobSha || !result.proof)
       throw new PrivateSyncError('invalid_asset')
     return result
@@ -61,8 +61,8 @@ export class PrivateSyncClient {
     return bytes.buffer
   }
 
-  async commitArticle(request: CommitArticleRequest): Promise<CommitArticleResult> {
-    const result = await (await this.request(`articles/${encodeURIComponent(request.article.id)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) })).json()
+  async commitArticle(request: CommitArticleRequest, vaultId: string): Promise<CommitArticleResult> {
+    const result = await (await this.request(`articles/${encodeURIComponent(request.article.id)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-vault-id': vaultId }, body: JSON.stringify(request) })).json()
     return { head: gitShaSchema.parse(result.head), stored: parseStoredArticle(result.stored) }
   }
 

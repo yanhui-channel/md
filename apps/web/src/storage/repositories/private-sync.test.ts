@@ -116,6 +116,23 @@ it('staleWholeListCannotDeleteUnseenDocumentsOrOverwriteOtherTabs', async () => 
   expect((await getLocalDraft('other-article'))?.deleted).toBe(false)
   await expect(savePrivateDocuments([{ ...rows[0], content: 'stale edit' }], true)).rejects.toThrow('local_conflict')
 })
+it('historyBackupIsSavedWithoutPostponingContentSync', async () => {
+  await saveLocalArticle(post(), theme(), vault, 0)
+  const rows = await loadPrivateDocuments()
+  const events: any[] = []
+  const onSaved = (event: Event) => events.push((event as CustomEvent).detail)
+  window.addEventListener('md:private-saved', onSaved)
+  try {
+    rows[0].history.unshift({ content: rows[0].content, datetime: '2026-10-12T00:00:00.000Z' })
+    await savePrivateDocuments(rows, false)
+    expect((await getLocalDraft('test-1'))?.post.history).toHaveLength(1)
+    expect(events[events.length - 1]).toMatchObject({ id: 'test-1', historyOnly: true })
+    rows[0].content = 'edited body'
+    await savePrivateDocuments(rows, false)
+    expect(events[events.length - 1]).toMatchObject({ id: 'test-1', historyOnly: false })
+  }
+  finally { window.removeEventListener('md:private-saved', onSaved) }
+})
 it('deleteKeepsTheBodyInATombstoneAndImportRemainsUnselected', async () => {
   await saveLocalArticle(post(), theme(), vault, 0)
   await selectArticle(vault, 'test-1', true)

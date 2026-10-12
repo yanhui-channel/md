@@ -15,3 +15,11 @@ it('preservesRetryAfterAndSupports304', async () => {
   await expect(client.readVault()).rejects.toMatchObject({ code: 'rate_limited', retryAfter: 120000 })
   expect(await client.readVault('"head"')).toEqual({ state: null, etag: '"head"' })
 })
+it('bindsBothWriteEndpointsToTheExplicitVault', async () => {
+  const fetch = vi.fn(async () => Response.json({ error: 'vault_changed' }, { status: 409 }))
+  vi.stubGlobal('fetch', fetch)
+  const client = new PrivateSyncClient()
+  await expect(client.commitArticle({ article: { id: 'a' } } as any, '123:main')).rejects.toMatchObject({ code: 'vault_changed' })
+  await expect(client.uploadAsset({ path: 'assets/image.png', mime: 'image/png' } as any, new Blob(['image']), '123:main')).rejects.toMatchObject({ code: 'vault_changed' })
+  expect(fetch.mock.calls.map((call: any) => call[1].headers['x-vault-id'])).toEqual(['123:main', '123:main'])
+})

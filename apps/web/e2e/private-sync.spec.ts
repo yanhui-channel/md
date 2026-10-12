@@ -62,6 +62,38 @@ test('themeOnlyChangesSyncAndMissingImageCannotBeConfirmed', async ({ page, cont
   expect(api.commits.length).toBe(count)
   expect((await record(page, id)).localGeneration).toBeGreaterThan((await record(page, id)).confirmedGeneration)
 })
+test('restoredThemeEditsSurviveFastSwitchAndReload', async ({ page, context }) => {
+  const api = new PrivateApi(); await api.attach(context); await start(page)
+  await edit(page, '# Article A\n\n```json\n{"test": true}\n```'); const id = await upload(page)
+  await page.reload(); await start(page)
+  await call(page, 'post', 'addPost', ['Article B'])
+  await call(page, 'privateSync', 'save')
+  await page.evaluate(async (id) => {
+    const p = (document.querySelector('#app') as any).__vue_app__.config.globalProperties.$pinia
+    const posts = p._s.get('post'); const b = posts.currentPostId
+    posts.currentPostId = id
+    p._s.get('theme').fontSize = '18px'
+    posts.currentPostId = b
+    await p._s.get('privateSync').save()
+    posts.currentPostId = id
+  }, id)
+  await sync(page)
+  expect(api.articles.get(id)!.article.theme.settings.fontSize).toBe('18px')
+  await call(page, 'cssEditor', 'addCssContentTab', ['Article override', '#output p { color: #008080 }'])
+  await page.evaluate(async () => {
+    const theme = (document.querySelector('#app') as any).__vue_app__.config.globalProperties.$pinia._s.get('theme')
+    theme.codeBlockTheme = '/static/libs/highlight/styles/github.css'
+    await theme.updateCodeTheme()
+  })
+  await sync(page)
+  expect(api.articles.get(id)!.article.theme.customCss).toMatch(/#008080|rgb\(0,\s*128,\s*128\)/)
+  expect(api.articles.get(id)!.article.theme.codeCss).toMatch(/#24292e|rgb\(36,\s*41,\s*46\)/)
+  await page.reload(); await start(page)
+  const theme = await page.evaluate(() => (document.querySelector('#app') as any).__vue_app__.config.globalProperties.$pinia._s.get('theme').restoredTheme)
+  expect(theme.customCss).toMatch(/#008080|rgb\(0,\s*128,\s*128\)/)
+  expect(theme.codeCss).toMatch(/#24292e|rgb\(36,\s*41,\s*46\)/)
+  expect(theme.settings.fontSize).toBe('18px')
+})
 test('quotaBlocksLoginAndKeepsTypedContent', async ({ page, context }) => {
   const api = new PrivateApi(); await api.attach(context); await start(page)
   await edit(page, '# Saved\n\noriginal')

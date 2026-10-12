@@ -4,6 +4,7 @@ export interface ThemeSnapshot {
   id: string
   settings: z.infer<typeof themeSchema>['settings']
   css: string
+  customCss?: string
   codeCss: string
   previewWidth: string
   legend: string
@@ -31,6 +32,7 @@ export const themeSchema = z.object({
     isMacCodeBlock: z.boolean(),
   }),
   css: z.string().max(500000),
+  customCss: z.string().max(500000).optional(),
   codeCss: z.string().max(100000),
   previewWidth: z.string().max(20).regex(/^(?:\d+(?:px|%)|auto|w-full|w-\[375px\])$/),
   legend: z.enum(['none', 'alt', 'title', 'alt-title', 'title-alt', 'filename']),

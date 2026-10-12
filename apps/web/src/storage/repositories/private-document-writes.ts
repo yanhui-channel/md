@@ -50,9 +50,10 @@ export async function savePrivateDocuments(posts: Post[], replace: boolean, impo
     const themeJson = JSON.stringify(theme)
     if (old?.serialized === serialized && old.theme === themeJson)
       continue
+    const historyOnly = !!old && old.theme === themeJson && old.serialized === JSON.stringify(toStored({ ...post, history: old.post.history }))
     const generation = await saveLocalArticle(post, theme, vault, old?.generation ?? 0, false, imported?.assets)
     observed.set(post.id, { generation, post: fromStored(toStored(post)), serialized, theme: themeJson })
-    window.dispatchEvent(new CustomEvent('md:private-saved', { detail: { id: post.id, generation } }))
+    window.dispatchEvent(new CustomEvent('md:private-saved', { detail: { id: post.id, generation, historyOnly } }))
   }
   if (replace) {
     for (const [id, old] of observed) {

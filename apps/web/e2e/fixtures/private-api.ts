@@ -80,6 +80,8 @@ export class PrivateApi {
       return reply({ error: 'invalid_origin_or_csrf' }, 403)
     if (url.pathname === '/api/vault')
       return reply({ schemaVersion: 1, vaultId: this.vaultId, head: this.head, entries: [...this.articles.values()].map(s => ({ id: s.article.id, title: s.article.title, parentId: s.article.parentId, updatedAt: s.article.updatedAt, revision: s.revision, digest: s.digest, deleted: s.article.deleted })) })
+    if (request.method() === 'PUT' && request.headers()['x-vault-id'] !== this.vaultId)
+      return reply({ error: 'vault_changed' }, 409)
     const asset = url.pathname.match(/^\/api\/(assets\/[a-f\d]{64}\.(?:png|jpeg|jpg|webp|gif))$/)
     if (asset) {
       if (request.method() === 'PUT') {

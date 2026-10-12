@@ -7,6 +7,7 @@ import { t } from '@/i18n/translate'
 import { debounce } from '@/lib/debounce'
 import { normalizePostHistory, toStoredDateTime } from '@/lib/format/datetime'
 import { postSignature } from '@/lib/post-signature'
+import { captureThemeSnapshot } from '@/lib/visual/capture-theme'
 import { PRIVATE_SYNC_ENABLED } from '@/services/account/config'
 import { documentRepo, getLoadedDocuments, store } from '@/storage'
 import { addPrefix } from '@/storage/prefix'
@@ -56,6 +57,8 @@ export const usePostStore = defineStore(`post`, () => {
 
   let persistReady = false
   let restoring = false
+  const pendingThemes = new Map<string, Promise<ThemeSnapshot>>()
+  const getPendingTheme = (id: string) => pendingThemes.get(id)
 
   function reportSaveFailure(error: unknown) {
     writeDocumentsPagehideBackup([...posts.value])
@@ -98,7 +101,7 @@ export const usePostStore = defineStore(`post`, () => {
     persistAll.cancel()
     persistDirty.cancel()
     dirtyPostIds.clear()
-    const snapshot = [...posts.value]
+    const snapshot = posts.value.map(post => ({ ...post, history: post.history.map(entry => ({ ...entry })) }))
     // IndexedDB writes may not finish before a tab is killed (OAuth redirect).
     const backupToken = writeDocumentsPagehideBackup(snapshot)
     await documentRepo.saveAll(snapshot)
@@ -183,12 +186,15 @@ export const usePostStore = defineStore(`post`, () => {
         count: theme.isCountStatus,
         indent: theme.isUseIndent,
         justify: theme.isUseJustify,
-      }), () => {
-        if (!restoring && currentPostId.value) {
+      }), (_next, previous) => {
+        if (!restoring && currentPostId.value && JSON.parse(previous).id === currentPostId.value) {
+          const captured = captureThemeSnapshot()
+          pendingThemes.set(currentPostId.value, captured)
+          void captured.catch(reportSaveFailure)
           dirtyPostIds.add(currentPostId.value)
           persistDirty()
         }
-      })
+      }, { flush: 'sync' })
     }
 
     const flushToDisk = () => {
@@ -235,6 +241,7 @@ export const usePostStore = defineStore(`post`, () => {
     persistAll.cancel()
     persistDirty.cancel()
     dirtyPostIds.clear()
+    pendingThemes.clear()
     try {
       posts.value = normalizePosts(nextPosts)
       if (!posts.value.some(p => p.id === currentPostId.value))
@@ -373,5 +380,6 @@ export const usePostStore = defineStore(`post`, () => {
     acceptPrivatePosts,
     persistImmediately,
     restoreArticle,
+    getPendingTheme,
   }
 })

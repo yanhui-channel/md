@@ -132,3 +132,17 @@ it('doesNotKeepRetryingAnInvalidArticle', async () => {
   await vi.advanceTimersByTimeAsync(600000)
   expect(client.commitArticle).toHaveBeenCalledTimes(1)
 })
+it('unchangedRevisionStillVerifiesActualRemoteFiles', async () => {
+  state.pending = null
+  state.record = { ...state.record, baseRevision: 'same', confirmedGeneration: 1, confirmedDigest: 'old' }
+  const { coordinator, client, options } = setup()
+  client.readVault.mockResolvedValue({ state: { vaultId: '1:main', head: 'c'.repeat(40), entries: [{ id: 'a', revision: 'same' }] }, etag: 'c' } as any)
+  client.readArticle.mockRejectedValue(new PrivateSyncError('article_integrity_failed', 422))
+  await coordinator.syncNow()
+  expect(options.onChange).toHaveBeenLastCalledWith('attention', 'article_integrity_failed')
+})
+it('writeUsesConfirmedVaultRatherThanMutableServerTarget', async () => {
+  const { coordinator, client } = setup()
+  await coordinator.syncNow()
+  expect(client.commitArticle).toHaveBeenCalledWith(expect.anything(), '1:main')
+})

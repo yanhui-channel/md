@@ -40,8 +40,10 @@ export async function readBlob(env: PrivateEnv, sha: string, max: number): Promi
   return bytes
 }
 
-export async function storeAsset(env: PrivateEnv, path: string, bytes: ArrayBuffer): Promise<PrivateAsset> {
+export async function storeAsset(env: PrivateEnv, expectedVaultId: string, path: string, bytes: ArrayBuffer): Promise<PrivateAsset> {
   const vaultId = await repositoryIdentity(env)
+  if (vaultId !== expectedVaultId)
+    throw new SyncError('vault_changed', 409)
   const asset = await validateAssetBytes(path, new Uint8Array(bytes))
   const result = await github<{ sha: string }>(env, '/git/blobs', 'POST', { encoding: 'base64', content: base64(new Uint8Array(bytes)) })
   const uploaded = { ...asset, blobSha: gitShaSchema.parse(result.sha) }

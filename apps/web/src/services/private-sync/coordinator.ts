@@ -74,14 +74,14 @@ export function createPrivateSyncCoordinator(client: PrivateSyncClient, options:
         const local = await assetRepo.get(asset.path)
         if (!local)
           throw new PrivateSyncError('missing_asset')
-        request.article.assets[i] = await client.uploadAsset(asset, local.blob)
+        request.article.assets[i] = await client.uploadAsset(asset, local.blob, options.vaultId)
       }
       if (paused || disposed)
         return
       if (!manual)
         await setMeta(scheduleKey, JSON.stringify({ ...timing, lastAutoAt: Date.now() }))
       try {
-        const result = await client.commitArticle(request)
+        const result = await client.commitArticle(request, options.vaultId)
         await confirmPending(options.vaultId, id, pending.generation, result)
         commits++
       }
@@ -104,10 +104,15 @@ export function createPrivateSyncCoordinator(client: PrivateSyncClient, options:
       if (paused || disposed)
         return
       const record = await getSyncRecord(options.vaultId, entry.id)
-      if (!record.selected || record.conflict || record.baseRevision === entry.revision)
+      if (!record.selected || record.conflict)
         continue
       const local = await getLocalDraft(entry.id)
       const stored = await client.readArticle(entry.id, vault.head!)
+      if (record.baseRevision === entry.revision) {
+        if (stored.digest !== record.confirmedDigest)
+          throw new PrivateSyncError('article_integrity_failed', 422)
+        continue
+      }
       if (record.pending || (local && local.generation !== record.confirmedGeneration)) {
         await rememberConflict(options.vaultId, entry.id, { head: vault.head!, stored })
         continue
@@ -121,6 +126,8 @@ export function createPrivateSyncCoordinator(client: PrivateSyncClient, options:
     }
     failures = 0
     const records = (await listSyncRecords(options.vaultId)).filter(r => r.record.selected)
+    if (records.some(r => r.record.baseRevision && !vault.entries.some(entry => entry.id === r.id)))
+      throw new PrivateSyncError('article_integrity_failed', 422)
     const conflict = records.some(r => r.record.conflict)
     const dirty = records.some(r => r.record.pending || r.record.localGeneration !== r.record.confirmedGeneration)
     options.onChange(conflict ? 'attention' : dirty || !records.length ? 'local' : 'synced', conflict ? 'article_conflict' : '')

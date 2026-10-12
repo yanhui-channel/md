@@ -9,7 +9,7 @@ const request = (id = 'article-1') => ({ baseRevision: null, operationId: crypto
 
 describe('atomic private Git repository', () => {
   it('roundTripsBodyThemeCatalogAndFixedRevision', async () => {
-    const result = await commitArticle(testEnv, request())
+    const result = await commitArticle(testEnv, '456:main', request())
     expect((await readVault(testEnv)).entries[0].title).toBe('Test article')
     expect(await readArticle(testEnv, 'article-1', result.head)).toEqual(result.stored)
     expect(git.text('articles/article-1/article.md')).toBe('# Test')
@@ -19,40 +19,40 @@ describe('atomic private Git repository', () => {
   it('sameArticleRaceKeepsBothVersions', async () => {
     const a = request(); const b = request()
     b.article.markdown = 'other device'
-    git.beforeUpdate = async () => { await commitArticle(testEnv, b) }
-    await expect(commitArticle(testEnv, a)).rejects.toMatchObject({ status: 409 })
+    git.beforeUpdate = async () => { await commitArticle(testEnv, '456:main', b) }
+    await expect(commitArticle(testEnv, '456:main', a)).rejects.toMatchObject({ status: 409 })
     expect(git.text('articles/article-1/article.md')).toBe('other device')
     expect(a.article.markdown).toBe('# Test')
   })
   it('unrelatedArticleRaceRebuildsTree', async () => {
-    git.beforeUpdate = async () => { await commitArticle(testEnv, request('article-2')) }
-    await commitArticle(testEnv, request())
+    git.beforeUpdate = async () => { await commitArticle(testEnv, '456:main', request('article-2')) }
+    await commitArticle(testEnv, '456:main', request())
     expect((await readVault(testEnv)).entries.map(e => e.id).sort()).toEqual(['article-1', 'article-2'])
   })
   it('lostAckRetryDoesNotDuplicateCommit', async () => {
     const input = request()
-    const result = await commitArticle(testEnv, input)
-    expect(await commitArticle(testEnv, input)).toEqual(result)
+    const result = await commitArticle(testEnv, '456:main', input)
+    expect(await commitArticle(testEnv, '456:main', input)).toEqual(result)
     expect(git.createdCommits).toHaveLength(1)
-    await expect(commitArticle(testEnv, { ...input, article: { ...input.article, markdown: 'changed' } })).rejects.toMatchObject({ status: 409 })
+    await expect(commitArticle(testEnv, '456:main', { ...input, article: { ...input.article, markdown: 'changed' } })).rejects.toMatchObject({ status: 409 })
   })
   it('manualMarkdownEditIsNotOverwritten', async () => {
-    const result = await commitArticle(testEnv, request())
+    const result = await commitArticle(testEnv, '456:main', request())
     git.edit('articles/article-1/article.md', 'manual edit')
-    await expect(commitArticle(testEnv, { ...request(), baseRevision: result.stored.revision })).rejects.toMatchObject({ status: 422 })
+    await expect(commitArticle(testEnv, '456:main', { ...request(), baseRevision: result.stored.revision })).rejects.toMatchObject({ status: 422 })
     expect(git.text('articles/article-1/article.md')).toBe('manual edit')
   })
   it('failsClosedWhenRepoBecomesPublic', async () => {
     git.private = false
-    await expect(commitArticle(testEnv, request())).rejects.toMatchObject({ status: 403 })
+    await expect(commitArticle(testEnv, '456:main', request())).rejects.toMatchObject({ status: 403 })
     await expect(readVault(testEnv)).rejects.toMatchObject({ status: 403 })
     expect(git.createdCommits).toHaveLength(0)
   })
   it('deleteAndRestoreAreNewVersionsWithHistory', async () => {
-    const first = await commitArticle(testEnv, request())
-    const deleted = await commitArticle(testEnv, { baseRevision: first.stored.revision, operationId: crypto.randomUUID(), article: { ...first.stored.article, deleted: true } })
+    const first = await commitArticle(testEnv, '456:main', request())
+    const deleted = await commitArticle(testEnv, '456:main', { baseRevision: first.stored.revision, operationId: crypto.randomUUID(), article: { ...first.stored.article, deleted: true } })
     expect((await readVault(testEnv)).entries[0].deleted).toBe(true)
-    await commitArticle(testEnv, { baseRevision: deleted.stored.revision, operationId: crypto.randomUUID(), article: first.stored.article })
+    await commitArticle(testEnv, '456:main', { baseRevision: deleted.stored.revision, operationId: crypto.randomUUID(), article: first.stored.article })
     expect((await listArticleHistory(testEnv, 'article-1', 1)).entries).toHaveLength(3)
     expect((await readArticle(testEnv, 'article-1', deleted.head)).article.deleted).toBe(true)
   })
@@ -65,7 +65,7 @@ describe('atomic private Git repository', () => {
     for (let i = 0; i < 20; i++) {
       const next = request()
       next.article.markdown = String(i)
-      const result = await commitArticle(testEnv, { ...next, baseRevision: revision })
+      const result = await commitArticle(testEnv, '456:main', { ...next, baseRevision: revision })
       revision = result.stored.revision
     }
     const requests = vi.fn(git.fetch)
@@ -74,7 +74,7 @@ describe('atomic private Git repository', () => {
     expect(requests.mock.calls.length).toBeLessThan(10)
   })
   it('keepsRateLimitErrorsRecoverableInsteadOfReportingCorruptData', async () => {
-    await commitArticle(testEnv, request())
+    await commitArticle(testEnv, '456:main', request())
     vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => String(url).includes('/git/blobs/')
       ? Response.json({}, { status: 429, headers: { 'Retry-After': '120' } })
       : git.fetch(url, init))

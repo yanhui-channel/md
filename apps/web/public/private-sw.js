@@ -46,7 +46,7 @@ globalThis.addEventListener('fetch', (event) => {
   if (!entry && (!url.pathname.startsWith('/static/') || url.search) && !files.has(url.pathname))
     return
   event.respondWith((async () => {
-    const path = entry ? '/index.html' : url.pathname
+    const path = entry ? '/' : url.pathname
     const current = await (await caches.open(cacheName)).match(path)
     if (current)
       return current

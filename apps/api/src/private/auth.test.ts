@@ -94,4 +94,11 @@ describe('owner-only private auth', () => {
     expect((await app.request(`${origin}/api/auth/github`, {}, { ...env, SESSION_SECRET: '' })).status).toBe(503)
     expect(fetch).not.toHaveBeenCalled()
   })
+  it.each(['DATA_REPO_OWNER', 'DATA_REPO_NAME', 'DATA_REPO_BRANCH'] as const)('rejects missing %s before OAuth starts', async (field) => {
+    for (const value of [undefined, null, '', 123]) {
+      const result = await app.request(`${origin}/api/auth/github`, {}, { ...env, [field]: value })
+      expect(result.status).toBe(503)
+      expect(result.headers.has('location')).toBe(false)
+    }
+  })
 })

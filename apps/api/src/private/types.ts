@@ -20,6 +20,8 @@ export class SyncError extends Error {
 }
 
 export function validateConfig(env: PrivateEnv): void {
+  if ([env.DATA_REPO_OWNER, env.DATA_REPO_NAME, env.DATA_REPO_BRANCH].some(value => typeof value !== 'string' || !value))
+    throw new SyncError('configuration_required')
   if (!env.APP_ORIGIN || new URL(env.APP_ORIGIN).origin !== env.APP_ORIGIN || !env.APP_ORIGIN.startsWith('https://')
     || !/^\d+$/.test(env.ALLOWED_GITHUB_USER_ID) || !/^[\w-]+$/.test(env.DATA_REPO_OWNER)
     || !/^[\w.-]+$/.test(env.DATA_REPO_NAME) || !/^[\w/-]+$/.test(env.DATA_REPO_BRANCH)

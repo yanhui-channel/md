@@ -4,7 +4,19 @@
 
 ## 当前结论
 
-本地实现及独立审查发现的六项问题已修复。尚未部署、尚未创建云资源、尚未上传真实文章。真实 GitHub API、免费 Worker 配额和 iPhone 真机三项仍未验收，不能宣称端到端上线完成。
+截至 2026-10-13，试用站点已部署，公开编辑页面和离线保存已验证。GitHub OAuth 应用注册尚待作者完成，登录、真实文章同步、免费 Worker 配额和 iPhone 真机仍未验收，不能宣称端到端上线完成。未上传真实文章。
+
+## 2026-10-13 部署检查
+
+试用地址：<https://yanhui-private-editor.yanhui-channel.workers.dev>。部署来自独立干净源码导出，不含被忽略的本机文章、图片清单或环境配置。仅使用 Worker 和静态资源；没有开通付费升级、D1 或 R2。账户套餐费用尚未通过账单接口核实。
+
+独立部署审查额外发现四项问题，已补失败用例并修复：离线清单包含后台禁止访问的 `upload/`；缓存 `/index.html` 遇到平台规范化重定向；缺失仓库变量被隐式转成字符串；GitHub 二次限流被误认为授权失效且主限流未按重置时间等待。缓存改用 `/` 并排除上传路径，后台保持原有路径拦截。处理依据：[Cloudflare HTML routing](https://developers.cloudflare.com/workers/static-assets/routing/advanced/html-handling/)、[GitHub rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#exceeding-the-rate-limit)。修复由实施者回归，未进行第二次独立复审。
+
+更新后的全量单元测试 **776/776**（shared 62、core 162、web 431、api 121）通过；Web/API 类型检查、改动范围 lint、私有构建和产物扫描、Worker 打包及部署通过。之前 26 项模拟浏览器回归为原有证据，不冒充本次线上验收。
+
+线上浏览器检查：根页面返回 200；未完成配置时 `/api/me` 返回 503 并显示 `configuration_required`，不会放行同步。页面显示“编辑器已可离线打开”；模拟断网后新建无敏感测试稿、输入文字并刷新，正文仍在，代码高亮正常。390px 手机宽度截图已检查，随后恢复网络和浏览器尺寸。此结果不代表 iPhone 真机或中国大陆无代理网络已通过。
+
+单仓库令牌通过只读 API 验证：目标仓库私有且具有写权限。仓库令牌和会话密钥已通过临时内存管道存入 Worker secrets；不进入 Git、前端、命令参数或常规文件。OAuth 应用尚未注册，故未进行真实 Git 提交、图片同步或双设备冲突验收。新建测试稿仍只在本机。
 
 ## 本地证据
 

@@ -13,14 +13,14 @@ vi.mock('@/lib/toast', () => ({ toast: { error: vi.fn() } }))
 afterEach(() => { vi.useRealTimers(); vi.clearAllMocks(); mocks.composing = false })
 function worker() {
   const handlers: Record<string, (e: any) => void> = {}
-  const cache = { addAll: vi.fn(async () => {}), match: vi.fn(async () => new Response('cached')) }
+  const cache = { addAll: vi.fn(async () => {}), match: vi.fn(async (_path: string): Promise<Response | undefined> => new Response('cached')) }
   const self = { location: { origin: 'https://editor.test' }, addEventListener: (event: string, fn: (e: any) => void) => { handlers[event] = fn }, clients: { claim: vi.fn(async () => {}), matchAll: vi.fn(async () => [{ postMessage: vi.fn() }]) }, skipWaiting: vi.fn() }
-  const source = readFileSync(path.resolve('public/private-sw.js'), 'utf8').replace('= __PRIVATE_MANIFEST__', `= ${JSON.stringify({ version: 'test', files: ['/index.html', '/static/app.js'] })}`)
+  const source = readFileSync(path.resolve('public/private-sw.js'), 'utf8').replace('= __PRIVATE_MANIFEST__', `= ${JSON.stringify({ version: 'test', files: ['/', '/static/app.js'] })}`)
   const indexedDB = { deleteDatabase: vi.fn() }
   class BrowserRequest extends Request {
     constructor(url: string, init: RequestInit) { super(new URL(url, 'https://editor.test').href, init) }
   }
-  vm.runInNewContext(source, { ...self, URL, Request: BrowserRequest, Response, indexedDB, caches: { open: async () => cache, match: cache.match, delete: vi.fn() }, fetch: vi.fn() })
+  vm.runInNewContext(source, { ...self, URL, Request: BrowserRequest, Response, indexedDB, caches: { open: async () => cache, match: cache.match, keys: async () => [], delete: vi.fn() }, fetch: async () => { throw new Error('offline') } })
   return { handlers, cache, self, indexedDB }
 }
 it('neverCachesAuthOrPrivateApi', () => {
@@ -30,6 +30,13 @@ it('neverCachesAuthOrPrivateApi', () => {
     handlers.fetch({ request: { url: new URL(url, 'https://editor.test').href, method: 'GET', mode: 'navigate' }, respondWith })
     expect(respondWith).not.toHaveBeenCalled()
   }
+})
+it.each(['/', '/index.html'])('serves the canonical cached shell for navigation to %s', async (pathname) => {
+  const { handlers, cache } = worker()
+  cache.match.mockImplementation(async path => path === '/' ? new Response('canonical shell') : undefined)
+  let response!: Promise<Response>
+  handlers.fetch({ request: { url: `https://editor.test${pathname}`, method: 'GET', mode: 'navigate' }, respondWith: (p: Promise<Response>) => { response = p } })
+  expect(await (await response).text()).toBe('canonical shell')
 })
 it('offlineReadyRequiresAllCoreAssets', async () => {
   const { handlers, cache, self } = worker()

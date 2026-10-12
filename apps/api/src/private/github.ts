@@ -11,8 +11,18 @@ export async function github<T>(env: PrivateEnv, path: string, method = 'GET', b
     body: body === undefined ? undefined : JSON.stringify(body),
   })
   if (!response.ok) {
-    if (response.status === 429 || (response.status === 403 && (response.headers.has('retry-after') || response.headers.get('x-ratelimit-remaining') === '0')))
-      throw new SyncError('rate_limited', 429, undefined, response.headers.get('retry-after') ?? '60')
+    const exhausted = response.headers.get('x-ratelimit-remaining') === '0'
+    let secondaryLimit = false
+    if (response.status === 403 && !exhausted && !response.headers.has('retry-after')) {
+      const error = await readGithubJson<{ message?: unknown }>(response, 8192).catch(() => null)
+      secondaryLimit = typeof error?.message === 'string' && /secondary rate limit/i.test(error.message)
+    }
+    if (response.status === 429 || (response.status === 403 && (exhausted || secondaryLimit || response.headers.has('retry-after')))) {
+      const resetDelay = Number(response.headers.get('x-ratelimit-reset')) - Date.now() / 1000
+      const retry = Number(response.headers.get('retry-after'))
+      const seconds = Number.isFinite(retry) && retry > 0 ? Math.ceil(retry) : exhausted && Number.isFinite(resetDelay) && resetDelay > 0 ? Math.ceil(resetDelay) : 60
+      throw new SyncError('rate_limited', 429, undefined, String(seconds))
+    }
     if ([401, 403].includes(response.status))
       throw new SyncError('repository_authorization_required', 403)
     if (response.status === 404)
@@ -21,6 +31,10 @@ export async function github<T>(env: PrivateEnv, path: string, method = 'GET', b
       throw new SyncError('repository_changed', 409)
     throw new SyncError('github_unavailable')
   }
+  return readGithubJson<T>(response, 45 * 1024 * 1024)
+}
+
+async function readGithubJson<T>(response: Response, maxBytes: number): Promise<T> {
   const reader = response.body?.getReader()
   if (!reader)
     throw new SyncError('invalid_github_response')
@@ -31,7 +45,7 @@ export async function github<T>(env: PrivateEnv, path: string, method = 'GET', b
     if (chunk.done)
       break
     length += chunk.value.length
-    if (length > 45 * 1024 * 1024) {
+    if (length > maxBytes) {
       await reader.cancel()
       throw new SyncError('github_response_too_large', 413)
     }

@@ -80,6 +80,8 @@ export function createVisualSession(visual: Editor, options: SessionOptions): Vi
   }
 
   async function flush(): Promise<DocumentSnapshot> {
+    if (pending && source.state.doc.toString() !== baseline)
+      throw new Error('visual.conflictingInput')
     if (composing || source.composing)
       throw new Error('composition_active')
     const frozen = capture()

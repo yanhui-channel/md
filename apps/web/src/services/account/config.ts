@@ -1,4 +1,6 @@
 /** md-api base URL (cloud sync, account login, etc.). */
+export const PRIVATE_SYNC_ENABLED = import.meta.env.VITE_PRIVATE_SYNC_ENABLED === 'true'
+
 export const MD_API_URL = (
   import.meta.env.VITE_MD_API_URL
     ?? import.meta.env.VITE_SYNC_API_URL

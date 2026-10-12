@@ -5,6 +5,7 @@ import { applyTheme, getThemeInjector } from '@md/core/theme'
 import { defaultPerThemeSettings, defaultStyleConfig, widthOptions } from '@md/shared/configs'
 import { isMarketplaceThemeKey } from '@md/shared/types'
 import { renderSnapshotCss, validateThemeSnapshot } from '@/lib/visual/theme-snapshot'
+import { PRIVATE_SYNC_ENABLED } from '@/services/account/config'
 import { store } from '@/storage'
 import { addPrefix } from '@/storage/prefix'
 import { useCssEditorStore } from '@/stores/cssEditor'
@@ -30,7 +31,8 @@ export const useThemeStore = defineStore(`theme`, () => {
       const raw = store.getSync(key)
       if (!raw)
         return null
-      snapshots.set(key, store.reactive(key, validateThemeSnapshot(JSON.parse(raw))))
+      const snapshot = validateThemeSnapshot(JSON.parse(raw))
+      snapshots.set(key, PRIVATE_SYNC_ENABLED ? ref(snapshot) : store.reactive(key, snapshot))
     }
     return snapshots.get(key)!.value
   })

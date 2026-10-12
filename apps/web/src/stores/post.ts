@@ -7,10 +7,13 @@ import { t } from '@/i18n/translate'
 import { debounce } from '@/lib/debounce'
 import { normalizePostHistory, toStoredDateTime } from '@/lib/format/datetime'
 import { postSignature } from '@/lib/post-signature'
+import { PRIVATE_SYNC_ENABLED } from '@/services/account/config'
 import { documentRepo, getLoadedDocuments, store } from '@/storage'
 import { addPrefix } from '@/storage/prefix'
 import { clearDocumentsPagehideBackup, writeDocumentsPagehideBackup } from '@/storage/repositories/documents-backup'
+import { useCssEditorStore } from '@/stores/cssEditor'
 import { useEditorStore } from '@/stores/editor'
+import { useThemeStore } from '@/stores/theme'
 
 export type { Post } from '@/types/post'
 
@@ -165,6 +168,28 @@ export const usePostStore = defineStore(`post`, () => {
 
   onMounted(() => {
     const editorStore = useEditorStore()
+    if (PRIVATE_SYNC_ENABLED) {
+      const theme = useThemeStore()
+      const css = useCssEditorStore()
+      watch(() => JSON.stringify({
+        id: currentPostId.value,
+        restored: theme.restoredTheme,
+        settings: theme.themeSettings[theme.theme],
+        theme: theme.theme,
+        css: css.getCurrentTabContent(),
+        width: theme.previewWidth,
+        legend: theme.legend,
+        cite: theme.isCiteStatus,
+        count: theme.isCountStatus,
+        indent: theme.isUseIndent,
+        justify: theme.isUseJustify,
+      }), () => {
+        if (!restoring && currentPostId.value) {
+          dirtyPostIds.add(currentPostId.value)
+          persistDirty()
+        }
+      })
+    }
 
     const flushToDisk = () => {
       editorStore.flushContentToPostStore()

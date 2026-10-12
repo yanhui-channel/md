@@ -11,6 +11,7 @@ import Components from 'unplugin-vue-components/vite'
 import { defineConfig, loadEnv } from 'vite'
 import vueDevTools from 'vite-plugin-vue-devtools'
 
+import { privateOfflinePlugin } from './plugins/private-offline.ts'
 import { utoolsLocalAssetsPlugin } from './plugins/vite-plugin-utools-local-assets.ts'
 
 const isNetlify = process.env.SERVER_ENV === `NETLIFY`
@@ -104,9 +105,11 @@ function manualChunks(id: string): string | undefined {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd())
+  const isPrivate = mode === 'private'
 
   return {
-    base,
+    base: isPrivate ? '/' : base,
+    define: isPrivate ? { 'import.meta.env.VITE_PRIVATE_SYNC_ENABLED': JSON.stringify('true') } : {},
     envPrefix: [`VITE_`, `CF_`],
     plugins: [
       vue({
@@ -132,6 +135,7 @@ export default defineConfig(({ mode }) => {
         resolvers: [],
       }),
       isUTools && utoolsLocalAssetsPlugin(),
+      isPrivate && privateOfflinePlugin(),
     ],
     resolve: {
       alias: { '@': fileURLToPath(new URL(`./src`, import.meta.url)) },
@@ -144,6 +148,7 @@ export default defineConfig(({ mode }) => {
     },
     css: { devSourcemap: true },
     build: {
+      outDir: isPrivate ? 'dist-private' : 'dist',
       rolldownOptions: {
         onwarn(warning, warn) {
           // @vueuse/core /* #__PURE__ */ placement triggers INVALID_ANNOTATION; ignore

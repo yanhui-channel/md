@@ -6,7 +6,7 @@ export const MATHJAX_LOCAL_URL = `./static/libs/mathjax/tex-svg.js`
 const MATHJAX_SCRIPT_ID = `MathJax-script`
 
 function getMathJaxScriptUrl(): string {
-  if (typeof window !== `undefined` && window.__MD_UTOOLS__)
+  if (typeof window !== `undefined` && (window.__MD_UTOOLS__ || window.__MD_PRIVATE_OFFLINE__))
     return MATHJAX_LOCAL_URL
   return MATHJAX_CDN_URL
 }

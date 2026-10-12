@@ -1,5 +1,9 @@
 export default {
   privateSync: {
+    shell: { preparing: 'Preparing offline files', ready: 'Editor available offline', unavailable: 'Offline files unavailable; reconnect and retry' },
+    update: 'Update editor',
+    updateConfirm: 'Save local articles, then update and reopen the editor?',
+    storageNotPersistent: 'Persistent storage was not granted. Keep an independent backup in case the browser clears unsynced content.',
     backup: 'Export article backup',
     title: 'Private sync',
     local: 'Local only',

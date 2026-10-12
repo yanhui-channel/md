@@ -40,6 +40,10 @@ const HLJS_CDN_BASE = `https://cdn-doocs.oss-cn-shenzhen.aliyuncs.com/npm/highli
 const loadingLanguages = new Map<string, Promise<void>>()
 
 function grammarUrlFor(language: string): string {
+  if (!/^[a-z\d-]+$/i.test(language))
+    throw new Error('Invalid code language')
+  if (typeof window !== 'undefined' && window.__MD_PRIVATE_OFFLINE__)
+    return `/static/libs/highlight/${language}.js`
   return `${HLJS_CDN_BASE}/es/languages/${language}.min.js`
 }
 

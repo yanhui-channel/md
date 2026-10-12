@@ -39,5 +39,9 @@ export async function bootstrap(): Promise<void> {
   app.use(createPinia())
   useLocaleStore()
   app.mount(`#app`)
+  if (import.meta.env.VITE_PRIVATE_SYNC_ENABLED === 'true') {
+    const { registerPrivateOffline } = await import('./offline/register')
+    void registerPrivateOffline()
+  }
   scheduleInitialLoaderFallback()
 }

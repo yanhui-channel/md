@@ -4,6 +4,7 @@ import { computed, ref, watch } from 'vue'
 import VersionDiffViewer from '@/components/editor/post-slider/VersionDiffViewer.vue'
 import PanelDialog from '@/components/shared/panel-dialog/PanelDialog.vue'
 import { Button } from '@/components/ui/button'
+import { activatePrivateUpdate, offlineState, persistentStorage, waitingUpdate } from '@/offline/register'
 import { getLocalDraft } from '@/storage/repositories/private-sync'
 import { useConfirmStore } from '@/stores/confirm'
 import { usePostStore } from '@/stores/post'
@@ -69,6 +70,12 @@ async function select() {
   checked.value = Object.entries(sync.records).filter(([, record]) => record.selected).map(([id]) => id)
 }
 async function showHistory(id: string) { await sync.loadHistory(id); tab.value = 'history' }
+function update() {
+  useConfirmStore().confirm({ description: t('privateSync.updateConfirm'), onConfirm: () => action(async () => {
+    if (waitingUpdate.value)
+      await activatePrivateUpdate(waitingUpdate.value)
+  }) })
+}
 async function restore(id: string, head: string) {
   useConfirmStore().confirm({ description: t('privateSync.restoreConfirm'), onConfirm: () => action(async () => {
     if (!await getLocalDraft(id))
@@ -97,6 +104,15 @@ async function backup() {
         <span role="status" class="font-medium">{{ t(`privateSync.${sync.status}`) }}</span>
         <span class="text-muted-foreground break-all">{{ sync.identity?.login }}</span>
       </div>
+      <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+        <span role="status">{{ t(`privateSync.shell.${offlineState}`) }}</span>
+        <Button v-if="waitingUpdate" variant="outline" size="sm" :disabled="busy" @click="update">
+          <RefreshCw class="mr-2 size-4" />{{ t('privateSync.update') }}
+        </Button>
+      </div>
+      <p v-if="!persistentStorage" class="text-xs text-muted-foreground">
+        {{ t('privateSync.storageNotPersistent') }}
+      </p>
       <div v-if="sync.changedVault" role="alert" class="space-y-2 border-l-2 border-amber-500 pl-3">
         <p>{{ t('privateSync.vaultChanged') }}</p>
         <Button :disabled="busy" variant="outline" @click="action(sync.acceptVault)">

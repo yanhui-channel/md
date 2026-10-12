@@ -1,5 +1,9 @@
 export default {
   privateSync: {
+    shell: { preparing: '正在準備離線檔案', ready: '編輯器已可離線開啟', unavailable: '離線檔案未就緒，請連線重試' },
+    update: '更新編輯器',
+    updateConfirm: '將儲存本機文章，再更新並重新開啟編輯器。確定更新？',
+    storageNotPersistent: '瀏覽器未授予持久儲存。請保留獨立備份，避免系統清理後遺失未同步內容。',
     backup: '匯出文章備份',
     title: '私人同步',
     local: '僅本機',

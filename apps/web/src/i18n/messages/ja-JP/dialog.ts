@@ -1,5 +1,9 @@
 export default {
   privateSync: {
+    shell: { preparing: 'オフラインファイルを準備中', ready: 'オフラインで起動できます', unavailable: 'オフライン準備未完了。接続して再試行してください' },
+    update: 'エディターを更新',
+    updateConfirm: '記事を端末に保存してから、更新して開き直しますか？',
+    storageNotPersistent: '永続ストレージが許可されていません。未同期の内容が削除される場合に備え、別途バックアップを保管してください。',
     backup: '記事のバックアップを出力',
     title: 'プライベート同期',
     local: 'この端末のみ',

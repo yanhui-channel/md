@@ -544,6 +544,9 @@ importers:
       linkedom:
         specifier: ^0.18.13
         version: 0.18.13
+      mathjax:
+        specifier: 3.2.2
+        version: 3.2.2
       npm-run-all2:
         specifier: ^9.0.3
         version: 9.0.3
@@ -5195,6 +5198,9 @@ packages:
   math-intrinsics@1.1.0:
     resolution: {integrity: sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==}
     engines: {node: '>= 0.4'}
+
+  mathjax@3.2.2:
+    resolution: {integrity: sha512-Bt+SSVU8eBG27zChVewOicYs7Xsdt40qm4+UpHyX7k0/O9NliPc+x77k1/FEsPsjKPZGJvtRZM1vO+geW0OhGw==}
 
   mdast-util-find-and-replace@3.0.3:
     resolution: {integrity: sha512-xPgpDNl0/OXHsI7TlaIs22lWnH3KlpvZdXG1ET/m/YT2Hhdkx8lJV4kLphE6l9simyM4KPDFBwas08BgEob6Jw==}
@@ -11672,6 +11678,8 @@ snapshots:
   marked@18.1.0: {}
 
   math-intrinsics@1.1.0: {}
+
+  mathjax@3.2.2: {}
 
   mdast-util-find-and-replace@3.0.3:
     dependencies:

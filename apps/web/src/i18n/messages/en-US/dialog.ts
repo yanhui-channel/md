@@ -1,5 +1,12 @@
 export default {
   privateSync: {
+    clearLocal: 'Clear local data',
+    clearConfirm: 'Delete all local articles, images, settings and offline files for this site? Unsynced content without a backup will be lost permanently. GitHub articles are unchanged. Back up first and close other tabs.',
+    closeOtherTabs: 'Close other tabs and home-screen windows for this site, then retry.',
+    cleared: 'Local data cleared. Remote articles are unchanged.',
+    reopen: 'Reopen editor',
+    retryClear: 'Retry cleanup',
+    clearFailed: 'Cleanup incomplete. Keep your backups and retry.',
     shell: { preparing: 'Preparing offline files', ready: 'Editor available offline', unavailable: 'Offline files unavailable; reconnect and retry' },
     update: 'Update editor',
     updateConfirm: 'Save local articles, then update and reopen the editor?',

@@ -1,5 +1,12 @@
 export default {
   privateSync: {
+    clearLocal: '清理本机数据',
+    clearConfirm: '将删除此站点的全部本机文章、图片、设置和离线文件。未上传或未备份的内容将永久丢失，GitHub 文章不受影响。请先备份并关闭其他标签页。确认清理？',
+    closeOtherTabs: '请先关闭此站点的其他标签页和主屏幕窗口，再重试。',
+    cleared: '本机数据已清理，远端文章未改变。',
+    reopen: '重新打开编辑器',
+    retryClear: '重试清理',
+    clearFailed: '清理未完成，请保留备份并重试。',
     shell: { preparing: '正在准备离线文件', ready: '编辑器已可离线打开', unavailable: '离线文件未就绪，请联网重试' },
     update: '更新编辑器',
     updateConfirm: '将保存本机文章，再更新并重新打开编辑器。确认更新？',

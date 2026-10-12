@@ -12,6 +12,7 @@ import {
   mergeDocumentsWithBackup,
   peekDocumentsPagehideBackup,
 } from '@/storage/repositories/documents-backup'
+import { assetRecord } from './assets'
 import { fromStored, toStored } from './document-model'
 
 let cachedPosts: Post[] | null = null
@@ -167,13 +168,14 @@ export const documentRepo = {
         cachedPosts?.push(post)
         return
       }
+      const records = await Promise.all(assets.map(assetRecord))
       const db = await getDatabase()
       const tx = db.transaction([STORE_DOCUMENTS, STORE_ASSETS, STORE_SETTINGS], 'readwrite')
       void tx.done.catch(() => {})
       try {
         await tx.objectStore(STORE_DOCUMENTS).add(toStored(post))
         await tx.objectStore(STORE_SETTINGS).add({ key: post.themeId, value: JSON.stringify(theme) })
-        for (const asset of assets) await tx.objectStore(STORE_ASSETS).put(asset)
+        for (const asset of records) await tx.objectStore(STORE_ASSETS).put(asset)
         await tx.done
       }
       catch (error) {

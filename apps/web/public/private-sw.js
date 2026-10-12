@@ -21,6 +21,8 @@ globalThis.addEventListener('activate', (event) => {
   event.waitUntil(globalThis.clients.claim().then(() => announce('OFFLINE_READY')))
 })
 globalThis.addEventListener('message', (event) => {
+  if (event.data?.type === 'COUNT_WINDOWS')
+    event.waitUntil(globalThis.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windows => event.ports[0]?.postMessage(windows.length)))
   if (event.data?.type === 'ACTIVATE_UPDATE')
     event.waitUntil(globalThis.skipWaiting())
   if (event.data?.type === 'CHECK_OFFLINE') {

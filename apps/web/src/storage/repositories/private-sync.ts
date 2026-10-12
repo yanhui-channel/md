@@ -7,7 +7,7 @@ import { articleDigest, parsePrivateArticle, parseStoredArticle } from '@md/shar
 import { collectImageReferences } from '@/lib/visual/assets'
 import { validateThemeSnapshot } from '@/lib/visual/theme-snapshot'
 import { getDatabase } from '@/storage/db'
-import { LOCAL_ASSET_PATTERN, validateAsset } from './assets'
+import { assetRecord, LOCAL_ASSET_PATTERN, validateAsset } from './assets'
 import { fromStored, toStored } from './document-model'
 
 export interface PreparedSyncOperation { request: CommitArticleRequest, generation: number }
@@ -66,6 +66,7 @@ export async function selectArticle(vault: string, id: string, selected: boolean
 export async function saveLocalArticle(post: Post, theme: ThemeSnapshot | null, vault: string, expectedGeneration: number, deleted = false, assets: StoredAsset[] = []): Promise<number> {
   const stored = toStored(post)
   const checkedTheme = theme ? validateThemeSnapshot(theme) : null
+  const records = await Promise.all(assets.map(assetRecord))
   return write(async (tx) => {
     const current = parse<LocalDraft | null>(await tx.objectStore('meta').get(localKey(post.id)), null)
     if ((current?.generation ?? 0) !== expectedGeneration)
@@ -79,7 +80,7 @@ export async function saveLocalArticle(post: Post, theme: ThemeSnapshot | null, 
       await tx.objectStore('settings').put({ key: `private:theme:${post.id}`, value: JSON.stringify(checkedTheme) })
     if (checkedTheme && stored.themeId)
       await tx.objectStore('settings').put({ key: stored.themeId, value: JSON.stringify(checkedTheme) })
-    for (const asset of assets) await tx.objectStore('assets').put(asset)
+    for (const asset of records) await tx.objectStore('assets').put(asset)
     await putMeta(tx, localKey(post.id), { generation, post: stored, theme: checkedTheme, deleted } satisfies LocalDraft)
     await putMeta(tx, syncKey(vault, post.id), { ...record, localGeneration: generation })
     return generation
@@ -177,6 +178,7 @@ export async function applyRemote(vault: string, value: StoredPrivateArticle, as
       throw new Error('invalid_asset')
   }
   const themeId = `private:theme:${article.id}:${stored.revision}`
+  const records = await Promise.all(assets.map(assetRecord))
   const post: StoredDocument = { id: article.id, title: article.title, content: article.markdown, parentId: article.parentId, createDatetime: article.createdAt, updateDatetime: article.updatedAt, themeId, history: [] }
   return write(async (tx) => {
     let copyId: string | undefined
@@ -202,7 +204,7 @@ export async function applyRemote(vault: string, value: StoredPrivateArticle, as
       await tx.objectStore('documents').delete(article.id)
     else await tx.objectStore('documents').put(post)
     await tx.objectStore('settings').put({ key: themeId, value: JSON.stringify(theme) })
-    for (const asset of assets) await tx.objectStore('assets').put(asset)
+    for (const asset of records) await tx.objectStore('assets').put(asset)
     await putMeta(tx, localKey(article.id), { generation, post, theme, deleted: article.deleted })
     await putMeta(tx, syncKey(vault, article.id), { ...blank(), selected: true, localGeneration: generation, confirmedGeneration: generation, baseRevision: stored.revision, confirmedDigest: stored.digest })
     return copyId

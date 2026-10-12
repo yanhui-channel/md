@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ArchiveRestore, Cloud, Download, History, LogIn, LogOut, Pause, RefreshCw } from '@lucide/vue'
+import { ArchiveRestore, Cloud, Download, History, LogIn, LogOut, Pause, RefreshCw, Trash2 } from '@lucide/vue'
 import { computed, ref, watch } from 'vue'
 import VersionDiffViewer from '@/components/editor/post-slider/VersionDiffViewer.vue'
 import PanelDialog from '@/components/shared/panel-dialog/PanelDialog.vue'
 import { Button } from '@/components/ui/button'
+import { openLocalCleanup } from '@/offline/clear-local'
 import { activatePrivateUpdate, offlineState, persistentStorage, waitingUpdate } from '@/offline/register'
 import { getLocalDraft } from '@/storage/repositories/private-sync'
 import { useConfirmStore } from '@/stores/confirm'
@@ -76,6 +77,18 @@ function update() {
       await activatePrivateUpdate(waitingUpdate.value)
   }) })
 }
+function clearLocal() {
+  useConfirmStore().confirm({ description: t('privateSync.clearConfirm'), destructive: true, onConfirm: () => action(async () => {
+    sync.pause()
+    await sync.save()
+    if (sync.identity) {
+      await sync.logout()
+      if (sync.identity)
+        throw new Error(t('privateSync.clearFailed'))
+    }
+    openLocalCleanup()
+  }) })
+}
 async function restore(id: string, head: string) {
   useConfirmStore().confirm({ description: t('privateSync.restoreConfirm'), onConfirm: () => action(async () => {
     if (!await getLocalDraft(id))
@@ -144,6 +157,9 @@ async function backup() {
           </Button>
         </template>
       </div>
+      <Button variant="ghost" :disabled="busy || offlineState !== 'ready'" @click="clearLocal">
+        <Trash2 class="mr-2 size-4" />{{ t('privateSync.clearLocal') }}
+      </Button>
       <p v-if="sync.paused" class="text-muted-foreground">
         {{ t('privateSync.paused') }}
       </p>

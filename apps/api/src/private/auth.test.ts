@@ -48,7 +48,8 @@ describe('owner-only private auth', () => {
     expect((await app.request(`${origin}/api/auth/github/callback?code=ok&state=forged`, {}, env)).status).toBe(400)
     const { cookie } = await login()
     const me = await (await app.request(`${origin}/api/me`, { headers: { cookie } }, env)).json() as { csrfToken: string }
-    for (const headers of [{ cookie, 'origin': 'https://evil.example', 'x-csrf-token': me.csrfToken }, { cookie, origin }])
+    const invalidHeaders: Record<string, string>[] = [{ cookie, 'origin': 'https://evil.example', 'x-csrf-token': me.csrfToken }, { cookie, origin }]
+    for (const headers of invalidHeaders)
       expect((await app.request(`${origin}/api/logout`, { method: 'POST', headers }, env)).status).toBe(403)
     const logout = await app.request(`${origin}/api/logout`, { method: 'POST', headers: { cookie, origin, 'x-csrf-token': me.csrfToken } }, env)
     expect(logout.status).toBe(200)

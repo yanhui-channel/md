@@ -229,6 +229,21 @@ export const usePostStore = defineStore(`post`, () => {
     await documentRepo.saveAll(posts.value)
   }
 
+  async function acceptPrivatePosts(nextPosts: Post[]): Promise<void> {
+    persistReady = false
+    restoring = true
+    persistAll.cancel()
+    persistDirty.cancel()
+    dirtyPostIds.clear()
+    try {
+      posts.value = normalizePosts(nextPosts)
+      if (!posts.value.some(p => p.id === currentPostId.value))
+        currentPostId.value = posts.value[0]?.id ?? ''
+      await nextTick()
+    }
+    finally { persistReady = true; restoring = false }
+  }
+
   const findIndexById = (id: string) => posts.value.findIndex(p => p.id === id)
 
   const currentPostIndex = computed<number>({
@@ -355,6 +370,7 @@ export const usePostStore = defineStore(`post`, () => {
     expandAllPosts,
     replacePosts,
     replacePostsAndPersist,
+    acceptPrivatePosts,
     persistImmediately,
     restoreArticle,
   }

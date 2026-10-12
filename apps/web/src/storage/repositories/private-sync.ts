@@ -160,7 +160,7 @@ export async function rememberConflict(vault: string, id: string, conflict: Priv
   })
 }
 
-export async function applyRemote(vault: string, value: StoredPrivateArticle, assets: StoredAsset[], expectedGeneration: number): Promise<void> {
+export async function applyRemote(vault: string, value: StoredPrivateArticle, assets: StoredAsset[], expectedGeneration: number, preserveLocal = false): Promise<string | undefined> {
   const stored = parseStoredArticle(value)
   const article = stored.article
   const theme = validateThemeSnapshot(article.theme)
@@ -178,12 +178,24 @@ export async function applyRemote(vault: string, value: StoredPrivateArticle, as
   }
   const themeId = `private:theme:${article.id}:${stored.revision}`
   const post: StoredDocument = { id: article.id, title: article.title, content: article.markdown, parentId: article.parentId, createDatetime: article.createdAt, updateDatetime: article.updatedAt, themeId, history: [] }
-  await write(async (tx) => {
+  return write(async (tx) => {
+    let copyId: string | undefined
     const local = parse<LocalDraft | null>(await tx.objectStore('meta').get(localKey(article.id)), null)
     const record = parse(await tx.objectStore('meta').get(syncKey(vault, article.id)), blank())
-    if ((local?.generation ?? 0) !== expectedGeneration || record.pending || record.conflict
-      || (local && local.generation !== record.confirmedGeneration)) {
+    if (!local && await tx.objectStore('documents').get(article.id))
+      throw new Error('theme_capture_required')
+    if ((local?.generation ?? 0) !== expectedGeneration || (!preserveLocal && (record.pending || record.conflict
+      || (local && local.generation !== record.confirmedGeneration)))) {
       throw new Error('local_conflict')
+    }
+    if (preserveLocal && local) {
+      const id = crypto.randomUUID()
+      copyId = id
+      const copy = { ...local.post, id, parentId: null, title: `${local.post.title} (local copy)`, themeId: `private:theme:${id}` }
+      await tx.objectStore('documents').add(copy)
+      if (local.theme)
+        await tx.objectStore('settings').put({ key: copy.themeId, value: JSON.stringify(local.theme) })
+      await putMeta(tx, localKey(id), { generation: 1, post: copy, theme: local.theme, deleted: false })
     }
     const generation = expectedGeneration + 1
     if (article.deleted)
@@ -193,10 +205,21 @@ export async function applyRemote(vault: string, value: StoredPrivateArticle, as
     for (const asset of assets) await tx.objectStore('assets').put(asset)
     await putMeta(tx, localKey(article.id), { generation, post, theme, deleted: article.deleted })
     await putMeta(tx, syncKey(vault, article.id), { ...blank(), selected: true, localGeneration: generation, confirmedGeneration: generation, baseRevision: stored.revision, confirmedDigest: stored.digest })
+    return copyId
   })
 }
 
 export async function localPost(id: string): Promise<Post | null> {
   const draft = await getLocalDraft(id)
   return draft ? fromStored(draft.post) : null
+}
+
+export async function rebaseLocal(vault: string, id: string, remote: StoredPrivateArticle | null, expectedGeneration: number) {
+  await write(async (tx) => {
+    const local = parse<LocalDraft | null>(await tx.objectStore('meta').get(localKey(id)), null)
+    if (local?.generation !== expectedGeneration)
+      throw new Error('local_conflict')
+    const record = parse(await tx.objectStore('meta').get(syncKey(vault, id)), blank())
+    await putMeta(tx, syncKey(vault, id), { ...record, baseRevision: remote?.revision ?? null, confirmedDigest: remote?.digest ?? null, confirmedGeneration: 0, pending: null, conflict: null })
+  })
 }

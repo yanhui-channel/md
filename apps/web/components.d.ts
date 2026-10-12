@@ -154,6 +154,7 @@ declare module 'vue' {
     PostTaskDialog: typeof import('./src/components/editor/editor-header/PostTaskDialog.vue')['default']
     PreferencesDialog: typeof import('./src/components/editor/dialogs/PreferencesDialog.vue')['default']
     PreviewPanel: typeof import('./src/components/editor/PreviewPanel.vue')['default']
+    PrivateSyncPanel: typeof import('./src/components/editor/editor-header/PrivateSyncPanel.vue')['default']
     Progress: typeof import('./src/components/ui/progress/Progress.vue')['default']
     QiniuConfigForm: typeof import('./src/components/editor/dialogs/upload-providers/QiniuConfigForm.vue')['default']
     QuickCommandManager: typeof import('./src/components/ai/chat-box/QuickCommandManager.vue')['default']

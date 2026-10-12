@@ -1,9 +1,16 @@
-import { isAccountConfigured } from '@/services/account/config'
+import { isAccountConfigured, PRIVATE_SYNC_ENABLED } from '@/services/account/config'
 import { isSyncUiEnabled } from '@/services/sync/client'
 import { useNotificationsStore } from '@/stores/notifications'
+import { usePrivateSyncStore } from '@/stores/privateSync'
 
 /** Bootstrap account and cloud sync (call after Pinia is ready). */
 export function useAccountSyncBootstrap() {
+  if (PRIVATE_SYNC_ENABLED) {
+    const sync = usePrivateSyncStore()
+    onMounted(() => { void sync.initialize() })
+    onUnmounted(() => sync.pause())
+    return
+  }
   const authStore = useAuthStore()
   const syncStore = useSyncStore()
   const notificationsStore = useNotificationsStore()

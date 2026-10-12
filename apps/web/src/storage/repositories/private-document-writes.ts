@@ -8,7 +8,7 @@ import { getSyncRecord, saveLocalArticle } from './private-sync'
 
 // Each tab remembers what it actually read; a later global save cannot erase unseen work.
 const observed = new Map<string, { generation: number, post: Post, serialized: string, theme: string }>()
-export async function loadPrivateDocuments(): Promise<Post[]> {
+export async function inspectPrivateDocuments() {
   const tx = (await getDatabase()).transaction(['documents', 'meta'], 'readonly')
   const rows = await tx.objectStore('documents').getAll()
   const next = new Map<string, { generation: number, post: Post, serialized: string, theme: string }>()
@@ -19,9 +19,15 @@ export async function loadPrivateDocuments(): Promise<Post[]> {
     next.set(row.id, { generation: draft?.generation ?? 0, post, serialized: JSON.stringify(toStored(post)), theme: JSON.stringify(draft?.theme ?? null) })
   }
   await tx.done
-  observed.clear()
-  for (const [id, entry] of next) observed.set(id, entry)
-  return rows.map(fromStored)
+  return { posts: rows.map(fromStored), accept: () => {
+    observed.clear()
+    for (const [id, entry] of next) observed.set(id, entry)
+  } }
+}
+export async function loadPrivateDocuments(): Promise<Post[]> {
+  const snapshot = await inspectPrivateDocuments()
+  snapshot.accept()
+  return snapshot.posts
 }
 
 export async function savePrivateDocuments(posts: Post[], replace: boolean, imported?: { assets: StoredAsset[], theme: ThemeSnapshot }): Promise<void> {

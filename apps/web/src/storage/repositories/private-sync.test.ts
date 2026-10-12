@@ -2,8 +2,8 @@
 import { defaultPerThemeSettings } from '@md/shared/configs'
 import { articleDigest } from '@md/shared/utils/private-sync'
 import { beforeEach, expect, it, vi } from 'vitest'
-import { loadPrivateDocuments, savePrivateDocuments } from './private-document-writes'
-import { applyRemote, confirmPending, getLocalDraft, getSyncRecord, preparePending, saveLocalArticle, selectArticle } from './private-sync'
+import { inspectPrivateDocuments, loadPrivateDocuments, savePrivateDocuments } from './private-document-writes'
+import { applyRemote, confirmPending, getLocalDraft, getSyncRecord, preparePending, rebaseLocal, saveLocalArticle, selectArticle } from './private-sync'
 
 const memory = vi.hoisted(() => ({ rows: new Map<string, Map<string, any>>(), fail: '' }))
 vi.mock('@/lib/visual/capture-theme', () => ({ captureStoredArticleTheme: async (id: string) => {
@@ -126,4 +126,32 @@ it('deleteKeepsTheBodyInATombstoneAndImportRemainsUnselected', async () => {
   await savePrivateDocuments([{ ...post(), id: 'imported' }], false, { assets: [], theme: theme() })
   expect((await getLocalDraft('imported'))?.theme).toMatchObject({ id: 'yanhui' })
   expect(await preparePending(vault, 'imported')).toBeNull()
+})
+it('inspectingWithoutAcceptingCannotAdvanceTheEditorBaseline', async () => {
+  await saveLocalArticle(post(), theme(), vault, 0)
+  const rows = await loadPrivateDocuments()
+  await saveLocalArticle({ ...post(), content: 'remote replacement' }, theme(), vault, 1)
+  await inspectPrivateDocuments()
+  await expect(savePrivateDocuments([{ ...rows[0], content: 'unsaved typing' }], false)).rejects.toThrow('local_conflict')
+  expect((await getLocalDraft('test-1'))?.post.content).toBe('remote replacement')
+})
+it('acceptingRemoteAtomicallyPreservesTheLocalVersion', async () => {
+  const pending = await selected()
+  const article = { ...pending.request.article, markdown: 'remote' }
+  const op = crypto.randomUUID()
+  const stored = { article, revision: op, operationId: op, digest: await articleDigest(article) }
+  await applyRemote(vault, stored, [], 1, true)
+  expect((await getLocalDraft('test-1'))?.post.content).toBe('remote')
+  const copies = [...memory.rows.get('documents')!.values()].filter(p => p.id !== 'test-1')
+  expect(copies).toHaveLength(1)
+  expect(copies[0].content).toBe('first')
+})
+it('rebasingTheLocalChoiceKeepsItsBodyAndUsesANewOperation', async () => {
+  const first = await selected()
+  const remote = { article: first.request.article, revision: crypto.randomUUID(), operationId: crypto.randomUUID(), digest: 'a'.repeat(64) }
+  await rebaseLocal(vault, 'test-1', remote, 1)
+  const pending = await preparePending(vault, 'test-1')
+  expect(pending?.request.operationId).not.toBe(first.request.operationId)
+  expect(pending?.request.baseRevision).toBe(remote.revision)
+  expect(pending?.request.article.markdown).toBe('first')
 })

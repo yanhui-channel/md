@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "yanhui-private-editor",
+  "main": "src/private/index.ts",
+  "compatibility_date": "2026-10-12",
+  "assets": {
+    "directory": "../web/dist-private",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "observability": { "enabled": false }
+}

@@ -7,10 +7,14 @@ import { t } from '@/i18n/translate'
 import { debounce } from '@/lib/debounce'
 import { normalizePostHistory, toStoredDateTime } from '@/lib/format/datetime'
 import { postSignature } from '@/lib/post-signature'
+import { captureThemeSnapshot } from '@/lib/visual/capture-theme'
+import { PRIVATE_SYNC_ENABLED } from '@/services/account/config'
 import { documentRepo, getLoadedDocuments, store } from '@/storage'
 import { addPrefix } from '@/storage/prefix'
 import { clearDocumentsPagehideBackup, writeDocumentsPagehideBackup } from '@/storage/repositories/documents-backup'
+import { useCssEditorStore } from '@/stores/cssEditor'
 import { useEditorStore } from '@/stores/editor'
+import { useThemeStore } from '@/stores/theme'
 
 export type { Post } from '@/types/post'
 
@@ -53,6 +57,8 @@ export const usePostStore = defineStore(`post`, () => {
 
   let persistReady = false
   let restoring = false
+  const pendingThemes = new Map<string, Promise<ThemeSnapshot>>()
+  const getPendingTheme = (id: string) => pendingThemes.get(id)
 
   function reportSaveFailure(error: unknown) {
     writeDocumentsPagehideBackup([...posts.value])
@@ -95,7 +101,7 @@ export const usePostStore = defineStore(`post`, () => {
     persistAll.cancel()
     persistDirty.cancel()
     dirtyPostIds.clear()
-    const snapshot = [...posts.value]
+    const snapshot = posts.value.map(post => ({ ...post, history: post.history.map(entry => ({ ...entry })) }))
     // IndexedDB writes may not finish before a tab is killed (OAuth redirect).
     const backupToken = writeDocumentsPagehideBackup(snapshot)
     await documentRepo.saveAll(snapshot)
@@ -165,6 +171,31 @@ export const usePostStore = defineStore(`post`, () => {
 
   onMounted(() => {
     const editorStore = useEditorStore()
+    if (PRIVATE_SYNC_ENABLED) {
+      const theme = useThemeStore()
+      const css = useCssEditorStore()
+      watch(() => JSON.stringify({
+        id: currentPostId.value,
+        restored: theme.restoredTheme,
+        settings: theme.themeSettings[theme.theme],
+        theme: theme.theme,
+        css: css.getCurrentTabContent(),
+        width: theme.previewWidth,
+        legend: theme.legend,
+        cite: theme.isCiteStatus,
+        count: theme.isCountStatus,
+        indent: theme.isUseIndent,
+        justify: theme.isUseJustify,
+      }), (_next, previous) => {
+        if (!restoring && currentPostId.value && JSON.parse(previous).id === currentPostId.value) {
+          const captured = captureThemeSnapshot()
+          pendingThemes.set(currentPostId.value, captured)
+          void captured.catch(reportSaveFailure)
+          dirtyPostIds.add(currentPostId.value)
+          persistDirty()
+        }
+      }, { flush: 'sync' })
+    }
 
     const flushToDisk = () => {
       editorStore.flushContentToPostStore()
@@ -202,6 +233,22 @@ export const usePostStore = defineStore(`post`, () => {
     dirtyPostIds.clear()
     posts.value = normalizePosts(nextPosts)
     await documentRepo.saveAll(posts.value)
+  }
+
+  async function acceptPrivatePosts(nextPosts: Post[]): Promise<void> {
+    persistReady = false
+    restoring = true
+    persistAll.cancel()
+    persistDirty.cancel()
+    dirtyPostIds.clear()
+    pendingThemes.clear()
+    try {
+      posts.value = normalizePosts(nextPosts)
+      if (!posts.value.some(p => p.id === currentPostId.value))
+        currentPostId.value = posts.value[0]?.id ?? ''
+      await nextTick()
+    }
+    finally { persistReady = true; restoring = false }
   }
 
   const findIndexById = (id: string) => posts.value.findIndex(p => p.id === id)
@@ -330,7 +377,9 @@ export const usePostStore = defineStore(`post`, () => {
     expandAllPosts,
     replacePosts,
     replacePostsAndPersist,
+    acceptPrivatePosts,
     persistImmediately,
     restoreArticle,
+    getPendingTheme,
   }
 })

@@ -20,6 +20,7 @@ export interface SessionOptions {
   onStatus: (status: SessionStatus, error?: unknown) => void
 }
 export interface VisualSession {
+  isComposing: () => boolean
   snapshot: () => DocumentSnapshot
   capture: () => DocumentSnapshot
   commitPending: (force?: boolean) => void
@@ -79,6 +80,10 @@ export function createVisualSession(visual: Editor, options: SessionOptions): Vi
   }
 
   async function flush(): Promise<DocumentSnapshot> {
+    if (pending && source.state.doc.toString() !== baseline)
+      throw new Error('visual.conflictingInput')
+    if (composing || source.composing)
+      throw new Error('composition_active')
     const frozen = capture()
     clearTimeout(saveTimer)
     options.onStatus('saving')
@@ -149,7 +154,11 @@ export function createVisualSession(visual: Editor, options: SessionOptions): Vi
     })
   }
   const beforeInput = (event: Event) => { typing = (event as InputEvent).inputType === 'insertText' }
-  const sourceCompositionEnd = () => { queueMicrotask(mirrorSource) }
+  const sourceCompositionEnd = () => {
+    queueMicrotask(mirrorSource)
+    clearTimeout(saveTimer)
+    saveTimer = setTimeout(() => { void flush().catch(() => {}) }, 500)
+  }
   const keydown = (event: KeyboardEvent) => {
     if (!(event.metaKey || event.ctrlKey) || !['z', 'y'].includes(event.key.toLowerCase()))
       return
@@ -202,5 +211,5 @@ export function createVisualSession(visual: Editor, options: SessionOptions): Vi
     source.contentDOM.removeEventListener('compositionend', sourceCompositionEnd)
     source.dispatch({ effects: compartment.reconfigure([]) })
   }
-  return { snapshot, capture, commitPending, flush, undo, redo, dispose }
+  return { isComposing: () => composing || source.composing, snapshot, capture, commitPending, flush, undo, redo, dispose }
 }

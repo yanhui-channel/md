@@ -1,8 +1,8 @@
 import type { StoredAsset } from './assets'
 import type { ThemeSnapshot } from '@/lib/visual/theme-snapshot'
-import type { StoredDocument } from '@/storage/db'
 import type { Post } from '@/types/post'
 import { normalizePostHistory } from '@/lib/format/datetime'
+import { PRIVATE_SYNC_ENABLED } from '@/services/account/config'
 import { getDatabase } from '@/storage/db'
 import { LEGACY_POSTS_KEY, STORE_ASSETS, STORE_DOCUMENTS, STORE_SETTINGS } from '@/storage/keys'
 import { store } from '@/storage/manager'
@@ -12,34 +12,8 @@ import {
   mergeDocumentsWithBackup,
   peekDocumentsPagehideBackup,
 } from '@/storage/repositories/documents-backup'
-
-function toStored(post: Post): StoredDocument {
-  return {
-    id: post.id,
-    title: post.title,
-    content: post.content,
-    history: normalizePostHistory(post.history),
-    createDatetime: new Date(post.createDatetime).toISOString(),
-    updateDatetime: new Date(post.updateDatetime).toISOString(),
-    parentId: post.parentId ?? null,
-    collapsed: post.collapsed,
-    themeId: post.themeId,
-  }
-}
-
-function fromStored(doc: StoredDocument): Post {
-  return {
-    id: doc.id,
-    title: doc.title,
-    content: doc.content,
-    history: normalizePostHistory(doc.history),
-    createDatetime: new Date(doc.createDatetime),
-    updateDatetime: new Date(doc.updateDatetime),
-    parentId: doc.parentId ?? null,
-    collapsed: doc.collapsed,
-    themeId: doc.themeId,
-  }
-}
+import { assetRecord } from './assets'
+import { fromStored, toStored } from './document-model'
 
 let cachedPosts: Post[] | null = null
 let useLegacyStorage = false
@@ -94,6 +68,11 @@ async function saveAllLegacy(posts: Post[]): Promise<void> {
 }
 
 async function saveAllIndexedDB(posts: Post[]): Promise<void> {
+  if (PRIVATE_SYNC_ENABLED) {
+    await (await import('./private-document-writes')).savePrivateDocuments(posts, true)
+    cachedPosts = posts.map(p => fromStored(toStored(p)))
+    return
+  }
   const db = await getDatabase()
   const existing = await db.getAllKeys(STORE_DOCUMENTS)
   const nextIds = new Set(posts.map(p => p.id))
@@ -107,8 +86,9 @@ async function saveAllIndexedDB(posts: Post[]): Promise<void> {
 }
 
 async function savePostIndexedDB(post: Post): Promise<void> {
-  const db = await getDatabase()
-  await db.put(STORE_DOCUMENTS, toStored(post))
+  if (PRIVATE_SYNC_ENABLED)
+    await (await import('./private-document-writes')).savePrivateDocuments([post], false)
+  else await (await getDatabase()).put(STORE_DOCUMENTS, toStored(post))
   if (cachedPosts) {
     const idx = cachedPosts.findIndex(p => p.id === post.id)
     if (idx === -1)
@@ -119,6 +99,11 @@ async function savePostIndexedDB(post: Post): Promise<void> {
 }
 
 async function loadStoredPosts(): Promise<Post[]> {
+  if (PRIVATE_SYNC_ENABLED) {
+    if (useLegacyStorage)
+      throw new Error('private_storage_unavailable')
+    return (await import('./private-document-writes')).loadPrivateDocuments()
+  }
   if (useLegacyStorage)
     return loadFromLegacy()
   const db = await getDatabase()
@@ -127,6 +112,22 @@ async function loadStoredPosts(): Promise<Post[]> {
 }
 
 async function restorePagehideBackup(backup: { token: string | null, posts: Post[] }): Promise<Post[]> {
+  if (PRIVATE_SYNC_ENABLED) {
+    const existing = await loadStoredPosts()
+    const recovered: Post[] = []
+    for (const incoming of backup.posts) {
+      const current = existing.find(p => p.id === incoming.id)
+      if (current?.content === incoming.content && current?.title === incoming.title)
+        continue
+      const { getLocalDraft } = await import('./private-sync')
+      const theme = (await getLocalDraft(incoming.id))?.theme
+      const copy = { ...incoming, id: crypto.randomUUID(), title: `${incoming.title} (recovered)`, parentId: null, themeId: undefined }
+      await (await import('./private-document-writes')).savePrivateDocuments([copy], false, theme ? { theme, assets: [] } : undefined)
+      recovered.push(copy)
+    }
+    clearDocumentsPagehideBackup(backup.token ?? undefined)
+    return [...existing, ...recovered]
+  }
   let existing: Post[] = []
   try {
     existing = await loadStoredPosts()
@@ -160,13 +161,21 @@ export const documentRepo = {
     return runSerialized(async () => {
       if (useLegacyStorage || !post.themeId)
         throw new Error('本地数据库不可用，无法恢复完整备份')
+      if (PRIVATE_SYNC_ENABLED) {
+        if (await (await getDatabase()).get(STORE_DOCUMENTS, post.id))
+          throw new Error('article_exists')
+        await (await import('./private-document-writes')).savePrivateDocuments([post], false, { assets, theme })
+        cachedPosts?.push(post)
+        return
+      }
+      const records = await Promise.all(assets.map(assetRecord))
       const db = await getDatabase()
       const tx = db.transaction([STORE_DOCUMENTS, STORE_ASSETS, STORE_SETTINGS], 'readwrite')
       void tx.done.catch(() => {})
       try {
         await tx.objectStore(STORE_DOCUMENTS).add(toStored(post))
         await tx.objectStore(STORE_SETTINGS).add({ key: post.themeId, value: JSON.stringify(theme) })
-        for (const asset of assets) await tx.objectStore(STORE_ASSETS).put(asset)
+        for (const asset of records) await tx.objectStore(STORE_ASSETS).put(asset)
         await tx.done
       }
       catch (error) {
@@ -193,15 +202,17 @@ export const documentRepo = {
       return cachedPosts
     }
 
-    const db = await getDatabase()
-    const rows = await db.getAll(STORE_DOCUMENTS)
-    cachedPosts = rows.map(fromStored)
+    cachedPosts = await loadStoredPosts()
     return cachedPosts
   },
 
   async savePost(post: Post): Promise<void> {
+    if (PRIVATE_SYNC_ENABLED)
+      post = fromStored(JSON.parse(JSON.stringify(toStored(post))))
     return runSerialized(async () => {
       try {
+        if (PRIVATE_SYNC_ENABLED && useLegacyStorage)
+          throw new Error('private_storage_unavailable')
         if (useLegacyStorage) {
           const all = cachedPosts ?? await this.loadAll()
           const idx = all.findIndex(p => p.id === post.id)
@@ -224,8 +235,12 @@ export const documentRepo = {
   },
 
   async saveAll(posts: Post[]): Promise<void> {
+    if (PRIVATE_SYNC_ENABLED)
+      posts = posts.map(p => fromStored(JSON.parse(JSON.stringify(toStored(p)))))
     return runSerialized(async () => {
       try {
+        if (PRIVATE_SYNC_ENABLED && useLegacyStorage)
+          throw new Error('private_storage_unavailable')
         if (useLegacyStorage) {
           await saveAllLegacy(posts)
           return
@@ -243,6 +258,12 @@ export const documentRepo = {
 
   async deletePost(id: string): Promise<void> {
     return runSerialized(async () => {
+      if (PRIVATE_SYNC_ENABLED) {
+        if (useLegacyStorage)
+          throw new Error('private_storage_unavailable')
+        await saveAllIndexedDB((cachedPosts ?? await this.loadAll()).filter(p => p.id !== id))
+        return
+      }
       if (useLegacyStorage) {
         const all = (cachedPosts ?? await this.loadAll()).filter(p => p.id !== id)
         await saveAllLegacy(all)
@@ -257,6 +278,12 @@ export const documentRepo = {
 
   async clear(): Promise<void> {
     return runSerialized(async () => {
+      if (PRIVATE_SYNC_ENABLED) {
+        if (useLegacyStorage)
+          throw new Error('private_storage_unavailable')
+        await saveAllIndexedDB([])
+        return
+      }
       if (useLegacyStorage) {
         await store.remove(LEGACY_POSTS_KEY)
         cachedPosts = []

@@ -36,6 +36,8 @@ pnpm web dev --host 127.0.0.1 --port 5188 --strictPort
 
 ## 待迭代
 
+私有 GitHub 同步已在 `codex/private-mobile-github-sync` 实施，进入本地最终验收，**尚未开通线上服务或完成 iPhone 真机验收**。采用独立私有文章仓库作为远端存储，不再只是可选备份；公开 fork 仍只放代码。运行、部署批准边界和恢复办法见[私有同步手册](docs/private-sync-runbook.md)，各层验收状态见[验收记录](docs/private-sync-acceptance.md)。普通部署默认不启用此功能。
+
 以下是最初愿景中有意留到本地试用之后的部分，不是本轮遗漏。本次只记录，不提前实施。
 
 | 顺序 | 需求                       | 完成标准                                                                               |

@@ -1,5 +1,5 @@
 import type { DBSchema, IDBPDatabase, IDBPTransaction, StoreNames } from 'idb'
-import type { StoredAsset } from './repositories/assets'
+import type { AssetRecord } from './repositories/assets'
 import { openDB } from 'idb'
 import {
   DB_NAME,
@@ -36,7 +36,7 @@ export interface MetaRecord {
 }
 
 interface MdDBSchema extends DBSchema {
-  assets: { key: string, value: StoredAsset }
+  assets: { key: string, value: AssetRecord }
   documents: {
     key: string
     value: StoredDocument

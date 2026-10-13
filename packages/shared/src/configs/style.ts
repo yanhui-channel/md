@@ -225,7 +225,9 @@ export const widthOptions: IConfigOption[] = [
   },
 ]
 
-const codeBlockUrlPrefix = `https://cdn-doocs.oss-cn-shenzhen.aliyuncs.com/npm/highlightjs/11.11.1/styles/`
+const codeBlockUrlPrefix = typeof window !== 'undefined' && '__MD_PRIVATE_OFFLINE__' in window && window.__MD_PRIVATE_OFFLINE__
+  ? `/static/libs/highlight/styles/`
+  : `https://cdn-doocs.oss-cn-shenzhen.aliyuncs.com/npm/highlightjs/11.11.1/styles/`
 const codeBlockThemeList = [
   `1c-light`,
   `a11y-dark`,

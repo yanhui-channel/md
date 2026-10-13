@@ -1,52 +1,13 @@
-import type { PerThemeSettings } from '@md/shared/configs'
-import { generateCSSVariables, processCSS } from '@md/core/theme'
-import { z } from 'zod'
+import type { ThemeSnapshot } from '@md/shared/utils/article-theme'
+import { generateCSSVariables, processCSS, wrapCSSWithScope } from '@md/core/theme'
+import { assertNoCssResources, themeSchema } from '@md/shared/utils/article-theme'
 
-export interface ThemeSnapshot {
-  id: string
-  settings: PerThemeSettings
-  css: string
-  codeCss: string
-  previewWidth: string
-  legend: string
-  citeStatus: boolean
-  countStatus: boolean
-  indent: boolean
-  justify: boolean
-}
-
-const color = z.string().max(80).regex(/^(?:#[\da-f]{3,8}|[a-z]+|rgba?\([\d\s,.%]+\)|var\(--md-primary-color\))$/i)
-const bounded = (suffix: string, min: number, max: number) => z.string().regex(new RegExp(`^\\d+(?:\\.\\d+)?${suffix}$`)).refine(value => Number.parseFloat(value) >= min && Number.parseFloat(value) <= max)
-const themeSchema = z.object({
-  id: z.string().min(1).max(120),
-  settings: z.object({
-    primaryColor: color,
-    linkColor: color,
-    blockquoteBackground: color,
-    fontFamily: z.string().min(1).max(500).regex(/^[\p{L}\p{N}\s,'"_-]+$/u),
-    fontSize: bounded('px', 10, 48),
-    lineHeight: bounded('', 1, 3),
-    blockSpacing: bounded('', 0, 5),
-    codeBlockTheme: z.string().max(1000),
-    headingStyles: z.partialRecord(z.enum(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']), z.enum(['default', 'custom', 'color-only', 'border-bottom', 'border-left'])),
-    isShowLineNumber: z.boolean(),
-    isMacCodeBlock: z.boolean(),
-  }),
-  css: z.string().max(500000),
-  codeCss: z.string().max(100000),
-  previewWidth: z.string().max(20).regex(/^(?:\d+(?:px|%)|auto|w-full|w-\[375px\])$/),
-  legend: z.enum(['none', 'alt', 'title', 'alt-title', 'title-alt', 'filename']),
-  citeStatus: z.boolean(),
-  countStatus: z.boolean(),
-  indent: z.boolean(),
-  justify: z.boolean(),
-})
+export type { ThemeSnapshot } from '@md/shared/utils/article-theme'
 
 export function validateArticleCss(css: string, code = false): string {
   css = css.replace(/\/\*[\s\S]*?\*\//g, '')
   // Reject resource loads and escapes before the browser parses an inert sheet.
-  if (/[\\<]|(?:url|expression|(?:-webkit-)?image(?:-set)?|(?:-webkit-)?cross-fade|paint|element|src)\s*\(|@(?:import|font-face|namespace|document|supports|keyframes)/i.test(css))
-    throw new Error('Unsafe article CSS')
+  assertNoCssResources(css)
   const style = document.createElement('style')
   style.media = 'not all'
   style.textContent = css
@@ -103,11 +64,13 @@ export function validateArticleCss(css: string, code = false): string {
 export function validateThemeSnapshot(value: unknown): ThemeSnapshot {
   const theme = themeSchema.parse(value)
   theme.css = validateArticleCss(theme.css)
+  if (theme.customCss !== undefined)
+    theme.customCss = validateArticleCss(wrapCSSWithScope(theme.customCss, '#output'))
   theme.codeCss = validateArticleCss(theme.codeCss, true)
   theme.settings.codeBlockTheme = `${import.meta.env.BASE_URL}yanhui-code.css`
   return theme
 }
 
 export function renderSnapshotCss(snapshot: ThemeSnapshot): string {
-  return processCSS(`${snapshot.css}\n${generateCSSVariables({ ...snapshot.settings, isUseIndent: snapshot.indent, isUseJustify: snapshot.justify })}`)
+  return processCSS(`${snapshot.css}\n${wrapCSSWithScope(snapshot.customCss ?? '', '#output')}\n${generateCSSVariables({ ...snapshot.settings, isUseIndent: snapshot.indent, isUseJustify: snapshot.justify })}`)
 }

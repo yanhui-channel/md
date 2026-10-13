@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { Copy, Loader2, Menu, Palette } from '@lucide/vue'
+import { Cloud, Copy, Loader2, Menu, Palette } from '@lucide/vue'
 import { defineAsyncComponent } from 'vue'
 import { delay } from '@/lib/delay'
+import { PRIVATE_SYNC_ENABLED } from '@/services/account/config'
 import { processClipboardContent } from '@/services/export'
 import { buildPublicationHtml, purePublicationHtml } from '@/services/export/html'
 import { preparePublication } from '@/services/export/publication'
 import { useEditorStore } from '@/stores/editor'
 import { usePostStore } from '@/stores/post'
+import { usePrivateSyncStore } from '@/stores/privateSync'
 import { useUIStore } from '@/stores/ui'
 import EditDropdown from './EditDropdown.vue'
 import FileDropdown from './FileDropdown.vue'
@@ -25,6 +27,8 @@ const MarkdownHelpDialog = defineAsyncComponent(() => import('./MarkdownHelpDial
 const KeyboardShortcutsDialog = defineAsyncComponent(() => import('./KeyboardShortcutsDialog.vue'))
 const AccountDialog = defineAsyncComponent(() => import('./AccountDialog.vue'))
 const SyncDialog = defineAsyncComponent(() => import('./SyncDialog.vue'))
+const PrivateSyncPanel = defineAsyncComponent(() => import('./PrivateSyncPanel.vue'))
+const privateSync = PRIVATE_SYNC_ENABLED ? usePrivateSyncStore() : null
 const ShareDialog = defineAsyncComponent(() => import('./ShareDialog.vue'))
 const PdfExportDialog = defineAsyncComponent(() => import('@/components/editor/dialogs/PdfExportDialog.vue'))
 
@@ -188,6 +192,10 @@ function copyToWeChat() {
     </div>
 
     <div class="flex flex-wrap items-center gap-2">
+      <Button v-if="privateSync" variant="outline" class="h-9 max-md:w-9 max-md:px-0" :title="t('privateSync.title')" :aria-label="t('privateSync.title')" @click="isShowSyncDialog = true">
+        <Cloud class="size-4 md:mr-2" />
+        <span class="max-md:hidden" role="status">{{ t(`privateSync.${privateSync.status}`) }}</span>
+      </Button>
       <Button
         variant="outline"
         class="h-9 max-md:w-9 max-md:px-0"
@@ -222,8 +230,9 @@ function copyToWeChat() {
   <PreferencesDialog v-model:open="isShowPreferencesDialog" />
   <MarkdownHelpDialog v-if="isShowMarkdownHelpDialog" v-model:open="isShowMarkdownHelpDialog" />
   <KeyboardShortcutsDialog v-if="isShowKeyboardShortcutsDialog" v-model:open="isShowKeyboardShortcutsDialog" />
-  <AccountDialog v-if="isShowAccountDialog" v-model:open="isShowAccountDialog" />
-  <SyncDialog v-if="isShowSyncDialog" v-model:open="isShowSyncDialog" />
+  <AccountDialog v-if="isShowAccountDialog && !PRIVATE_SYNC_ENABLED" v-model:open="isShowAccountDialog" />
+  <SyncDialog v-if="isShowSyncDialog && !PRIVATE_SYNC_ENABLED" v-model:open="isShowSyncDialog" />
+  <PrivateSyncPanel v-if="isShowSyncDialog && PRIVATE_SYNC_ENABLED" v-model:open="isShowSyncDialog" />
   <ShareDialog v-if="isShowShareDialog" v-model:open="isShowShareDialog" />
   <PdfExportDialog v-if="isShowPdfExportDialog" v-model:open="isShowPdfExportDialog" />
 </template>

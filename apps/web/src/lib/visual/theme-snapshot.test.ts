@@ -24,4 +24,9 @@ describe('backup theme validation', () => {
     const theme = validateThemeSnapshot(themeFixture())
     expect(theme.settings.codeBlockTheme).not.toMatch(/^https?:/)
   })
+  it('preservesEditableCustomCssWithoutAllowingResourceLoads', () => {
+    const theme = validateThemeSnapshot({ ...themeFixture(), customCss: 'p {color:blue}' })
+    expect(theme.customCss).toContain('#output p')
+    expect(() => validateThemeSnapshot({ ...themeFixture(), customCss: 'p {background:url(https://example.invalid/track)}' })).toThrow()
+  })
 })

@@ -5,7 +5,8 @@ export async function github<T>(env: PrivateEnv, path: string, method = 'GET', b
   const url = `https://api.github.com/repos/${encodeURIComponent(env.DATA_REPO_OWNER)}/${encodeURIComponent(env.DATA_REPO_NAME)}${path}`
   const response = await fetch(url, {
     method,
-    redirect: 'error',
+    // Keep credentials on GitHub without relying on the unsupported "error" mode.
+    redirect: 'manual',
     signal: AbortSignal.timeout(20_000),
     headers: { 'Authorization': `Bearer ${env.DATA_REPO_TOKEN}`, 'User-Agent': 'yanhui-private-editor', 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2026-03-10', 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),

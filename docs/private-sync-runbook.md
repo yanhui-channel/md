@@ -22,11 +22,12 @@ pnpm api type-check
 pnpm web build
 pnpm web build:private
 pnpm api check:private
+pnpm api test:private-runtime
 pnpm web exec playwright install chromium webkit
 pnpm web test:e2e:private
 ```
 
-临时目录必须为空；再次验收时使用新的目录，不能把新源码覆盖到含私稿的目录。`build:private` 拒绝 `sample.md`、`assets.json`、本机 `.env*.local`，并扫描静态产物中的令牌/私人示例。`check:private` 只打包检查，不部署。
+临时目录必须为空；再次验收时使用新的目录，不能把新源码覆盖到含私稿的目录。`build:private` 拒绝 `sample.md`、`assets.json`、本机 `.env*.local`，并扫描静态产物中的令牌/私人示例。`check:private` 只打包检查，不部署。随后必须执行 `test:private-runtime`：它在 Workers 运行时加载刚生成的包，以假凭据和封闭的模拟上游检查 OAuth、仓库身份和重定向隔离，不访问真实 GitHub。
 
 浏览器测试使用独立上下文、真实 IndexedDB 和 Service Worker，接口由仅监听 `127.0.0.1` 的测试服务模拟，不包含真实令牌。WebKit 的 Service Worker 请求不能依赖 Playwright 路由拦截，因此模拟服务运行在真实本地 HTTP 层。[Playwright 说明](https://playwright.dev/docs/service-workers)
 
@@ -60,6 +61,8 @@ pnpm --filter @md/api exec wrangler deploy --config wrangler.private.jsonc
 静态离线清单必须通过真实 Worker 路由检查：不包含被拒绝的 `upload/`，首页使用不会重定向的 `/`。部署后用浏览器实际验证离线就绪与断网重开，不能只依赖 Vite 预览。GitHub 主限流按重置时间等待，二次限流至少等待一分钟；真实授权失效仍停止同步。
 
 ## 日常使用与恢复
+
+登录必须在同一个浏览器从站点首页发起；不要把授权回调链接复制到另一浏览器，也不要刷新已用过的回调页。出现 `invalid_oauth_state` 时返回首页重新登录，不关闭 state 校验。2026-10-13 的 `request_failed` 已在真实 Workers 运行时复现：后台 `fetch` 不接受 `redirect: 'error'`。三个后台 GitHub 请求改用 `manual`，继续通过响应状态拒绝所有 3xx，不能改成自动跟随以免转发凭据。
 
 首次登录逐篇勾选，点“同步所选文章”；不会自动上传所有历史草稿。旧文章如缺少独立主题快照，先打开确认样式。远端文章需下载到设备，本机显示“可离线”后才包含全部本地图片；外链图仍可能需要联网。
 

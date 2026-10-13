@@ -8,6 +8,7 @@
     "dev": "wrangler dev",
     "dev:private": "wrangler dev --config wrangler.private.jsonc",
     "check:private": "wrangler deploy --dry-run --config wrangler.private.jsonc --outdir ../../.private-worker-check",
+    "test:private-runtime": "node scripts/check-private-runtime.mjs",
     "deploy": "wrangler deploy --minify",
     "db:migrate:local": "wrangler d1 migrations apply md-sync --local",
     "db:migrate:remote": "wrangler d1 migrations apply md-sync --remote",

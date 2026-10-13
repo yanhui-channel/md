@@ -38,6 +38,31 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
 
 describe('owner-only private auth', () => {
+  it('uses Worker-compatible redirect handling for login and repository requests', async () => {
+    const upstream = vi.mocked(fetch).getMockImplementation()!
+    vi.stubGlobal('fetch', vi.fn(async (input: string, init?: RequestInit) => {
+      if (init?.redirect === 'error')
+        throw new TypeError('Workers supports only follow or manual redirects')
+      return upstream(input, init)
+    }))
+    const { response, cookie } = await login()
+    expect(response.status).toBe(302)
+    expect((await app.request(`${origin}/api/me`, { headers: { cookie } }, env)).status).toBe(200)
+    expect(vi.mocked(fetch).mock.calls.every(([, init]) => init?.redirect === 'manual')).toBe(true)
+  })
+  it.each(['exchange', 'identity'])('rejects a redirect during %s without forwarding credentials', async (stage) => {
+    const upstream = vi.mocked(fetch).getMockImplementation()!
+    vi.stubGlobal('fetch', vi.fn(async (input: string, init?: RequestInit) => {
+      if (input === (stage === 'exchange' ? 'https://github.com/login/oauth/access_token' : 'https://api.github.com/user'))
+        return new Response(null, { status: 302, headers: { location: 'https://unexpected.example/collect' } })
+      return upstream(input, init)
+    }))
+    const { response } = await login()
+    expect(response.status).toBe(503)
+    expect(response.headers.get('set-cookie')).not.toContain('__Host-yanhui-session=')
+    expect(vi.mocked(fetch).mock.calls).toHaveLength(stage === 'exchange' ? 1 : 2)
+    expect(vi.mocked(fetch).mock.calls.every(([, init]) => init?.redirect === 'manual')).toBe(true)
+  })
   it('rejectsOtherGithubId', async () => {
     githubId = 999
     const { response, cookie } = await login()

@@ -53,7 +53,8 @@ privateAuth.get('/github/callback', async (c) => {
     return c.json({ error: 'invalid_oauth_code' }, 400)
   const exchanged = await fetch('https://github.com/login/oauth/access_token', {
     method: 'POST',
-    redirect: 'error',
+    // Workers does not support "error"; reject 3xx through the status check below.
+    redirect: 'manual',
     signal: AbortSignal.timeout(15_000),
     headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify({ client_id: c.env.GITHUB_CLIENT_ID, client_secret: c.env.GITHUB_CLIENT_SECRET, code, redirect_uri: `${c.env.APP_ORIGIN}/api/auth/github/callback` }),
@@ -64,7 +65,7 @@ privateAuth.get('/github/callback', async (c) => {
   if (typeof token.access_token !== 'string' || !token.access_token)
     return c.json({ error: 'oauth_exchange_failed' }, 503)
   const userResponse = await fetch('https://api.github.com/user', {
-    redirect: 'error',
+    redirect: 'manual',
     signal: AbortSignal.timeout(15_000),
     headers: { 'Authorization': `Bearer ${token.access_token}`, 'Accept': 'application/vnd.github+json', 'User-Agent': 'yanhui-private-editor' },
   })

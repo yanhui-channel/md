@@ -166,6 +166,12 @@ export default {
   folder: {
     title: `本地文件夹`,
     closeFolder: `关闭文件夹`,
+    forgetFolder: `忘记此文件夹（不删除文件）`,
+    reconnect: `重新连接`,
+    permissionRequired: `文件夹已记住，需要重新授权访问`,
+    rememberFailed: `本次可以使用，但未能记住文件夹：{message}`,
+    restoreFailed: `无法恢复文件夹，可重新连接或选择其他文件夹：{message}`,
+    forgetFailed: `未能清除文件夹连接，请重试：{message}`,
     closePanel: `关闭面板`,
     openFolder: `打开文件夹`,
     browserUnsupported: `您的浏览器不支持本地文件夹访问`,

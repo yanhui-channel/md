@@ -1,4 +1,8 @@
+import { defineStore } from 'pinia'
+import { computed, ref, shallowRef } from 'vue'
 import { t } from '@/i18n/translate'
+import { getDatabase } from '@/storage/db'
+import { STORE_FOLDERS } from '@/storage/keys'
 
 export interface FileSystemNode {
   name: string
@@ -8,7 +12,6 @@ export interface FileSystemNode {
   handle?: FileSystemFileHandle | FileSystemDirectoryHandle
 }
 
-/** Runtime folder info (includes handle; kept in memory only). */
 interface RuntimeFolderInfo {
   id: string
   name: string
@@ -16,24 +19,27 @@ interface RuntimeFolderInfo {
 }
 
 function getErrorMessage(error: unknown): string {
-  if (error instanceof Error)
+  if (error instanceof Error || error instanceof DOMException)
     return error.message
   return String(error)
 }
 
 function getErrorName(error: unknown): string {
-  if (error instanceof Error)
+  if (error instanceof Error || error instanceof DOMException)
     return error.name
   return `UnknownError`
 }
 
 /** Local folder source: File System Access API, file tree, read/write. */
 export const useFolderSourceStore = defineStore(`folderSource`, () => {
-  const runtimeFolderMap = new Map<string, RuntimeFolderInfo>()
+  const currentRuntimeFolder = shallowRef<RuntimeFolderInfo | null>(null)
+  const rememberedHandle = shallowRef<FileSystemDirectoryHandle | null>(null)
+  const rememberedFolderName = computed(() => rememberedHandle.value?.name ?? '')
+  const needsPermission = ref(false)
+  const persistenceError = ref('')
+  let restored = false
 
-  const currentFolderId = ref<string | null>(null)
-
-  // Not persisted: tree nodes hold non-serializable handles
+  // Rebuild the tree from disk; only the directory handle is persisted.
   const fileTree = ref<FileSystemNode[]>([])
 
   const selectedFilePath = ref<string>(``)
@@ -41,12 +47,6 @@ export const useFolderSourceStore = defineStore(`folderSource`, () => {
   const isLoading = ref(false)
 
   const loadError = ref<string>(``)
-
-  const currentRuntimeFolder = computed(() => {
-    if (!currentFolderId.value)
-      return null
-    return runtimeFolderMap.get(currentFolderId.value) || null
-  })
 
   /** @deprecated Legacy shape for older callers */
   const currentFolderHandle = computed(() => {
@@ -65,6 +65,8 @@ export const useFolderSourceStore = defineStore(`folderSource`, () => {
   })
 
   async function selectFolder() {
+    if (isLoading.value)
+      return
     if (!isFileSystemAPISupported.value) {
       toast.error(t('store.folder.apiNotSupported'))
       return
@@ -72,6 +74,7 @@ export const useFolderSourceStore = defineStore(`folderSource`, () => {
 
     try {
       isLoading.value = true
+      restored = true
       loadError.value = ``
 
       const handle = await window.showDirectoryPicker({
@@ -81,30 +84,19 @@ export const useFolderSourceStore = defineStore(`folderSource`, () => {
 
       const permission = await handle.requestPermission({ mode: `readwrite` })
       if (permission !== `granted`) {
-        toast.error(t('store.folder.permissionDenied'))
-        return
+        throw new Error(t('store.folder.permissionDenied'))
       }
 
-      let folderId: string
-      const existingFolder = Array.from(runtimeFolderMap.values()).find(f => f.name === handle.name)
-
-      if (existingFolder) {
-        folderId = existingFolder.id
-        existingFolder.handle = handle
+      rememberedHandle.value = handle
+      persistenceError.value = ''
+      try {
+        const db = await getDatabase()
+        await db.put(STORE_FOLDERS, { id: 'last', handle })
       }
-      else {
-        folderId = generateFolderId()
-        const folderInfo: RuntimeFolderInfo = {
-          id: folderId,
-          name: handle.name,
-          handle,
-        }
-        runtimeFolderMap.set(folderId, folderInfo)
+      catch (error) {
+        persistenceError.value = t('folder.rememberFailed', { message: getErrorMessage(error) })
       }
-
-      currentFolderId.value = folderId
-
-      await loadFileTree(handle)
+      await activateFolder(handle)
 
       toast.success(t('store.folder.opened', { name: handle.name }))
     }
@@ -122,19 +114,91 @@ export const useFolderSourceStore = defineStore(`folderSource`, () => {
   }
 
   function closeFolder() {
-    if (currentFolderId.value) {
-      runtimeFolderMap.delete(currentFolderId.value)
-    }
-    currentFolderId.value = null
+    currentRuntimeFolder.value = null
     fileTree.value = []
     selectedFilePath.value = ``
   }
 
   function removeFolder(folderId: string) {
-    runtimeFolderMap.delete(folderId)
-
-    if (currentFolderId.value === folderId) {
+    if (currentRuntimeFolder.value?.id === folderId) {
       closeFolder()
+    }
+  }
+
+  async function activateFolder(handle: FileSystemDirectoryHandle) {
+    closeFolder()
+    needsPermission.value = false
+    await loadFileTree(handle)
+    currentRuntimeFolder.value = { id: generateFolderId(), name: handle.name, handle }
+  }
+
+  async function restoreLastFolder() {
+    if (restored || isLoading.value || !isFileSystemAPISupported.value)
+      return
+    restored = true
+    isLoading.value = true
+    try {
+      const db = await getDatabase()
+      const saved = await db.get(STORE_FOLDERS, 'last')
+      if (!saved)
+        return
+      rememberedHandle.value = saved.handle
+      // Startup may query permission, but only a user action may request it.
+      if (await saved.handle.queryPermission({ mode: 'readwrite' }) !== 'granted') {
+        needsPermission.value = true
+        return
+      }
+      await activateFolder(saved.handle)
+    }
+    catch (error) {
+      loadError.value = t('folder.restoreFailed', { message: getErrorMessage(error) })
+    }
+    finally {
+      isLoading.value = false
+    }
+  }
+
+  async function reconnectFolder() {
+    if (isLoading.value || !rememberedHandle.value)
+      return
+    isLoading.value = true
+    loadError.value = ''
+    closeFolder()
+    try {
+      const handle = rememberedHandle.value
+      if (await handle.requestPermission({ mode: 'readwrite' }) !== 'granted') {
+        needsPermission.value = true
+        throw new Error(t('store.folder.permissionDenied'))
+      }
+      await activateFolder(handle)
+    }
+    catch (error) {
+      loadError.value = t('folder.restoreFailed', { message: getErrorMessage(error) })
+    }
+    finally {
+      isLoading.value = false
+    }
+  }
+
+  async function forgetFolder() {
+    if (isLoading.value)
+      return
+    isLoading.value = true
+    try {
+      const db = await getDatabase()
+      await db.delete(STORE_FOLDERS, 'last')
+      closeFolder()
+      rememberedHandle.value = null
+      needsPermission.value = false
+      loadError.value = ''
+      persistenceError.value = ''
+      restored = true
+    }
+    catch (error) {
+      persistenceError.value = t('folder.forgetFailed', { message: getErrorMessage(error) })
+    }
+    finally {
+      isLoading.value = false
     }
   }
 
@@ -144,6 +208,7 @@ export const useFolderSourceStore = defineStore(`folderSource`, () => {
       fileTree.value = [tree]
     }
     catch (error: unknown) {
+      fileTree.value = []
       loadError.value = getErrorMessage(error)
       throw error
     }
@@ -189,7 +254,7 @@ export const useFolderSourceStore = defineStore(`folderSource`, () => {
       })
     }
     catch (error: unknown) {
-      console.error(`Failed to read directory: ${path}`, getErrorMessage(error))
+      throw new Error(`${path}: ${getErrorMessage(error)}`)
     }
 
     return node
@@ -290,6 +355,12 @@ export const useFolderSourceStore = defineStore(`folderSource`, () => {
     isLoading,
     loadError,
     isFileSystemAPISupported,
+    rememberedFolderName,
+    needsPermission,
+    persistenceError,
+    restoreLastFolder,
+    reconnectFolder,
+    forgetFolder,
     selectFolder,
     closeFolder,
     removeFolder,

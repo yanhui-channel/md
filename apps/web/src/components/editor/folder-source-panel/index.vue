@@ -41,9 +41,18 @@ const {
   isLoading,
   loadError,
   isFileSystemAPISupported,
+  rememberedFolderName,
+  needsPermission,
+  persistenceError,
 } = storeToRefs(folderSourceStore)
 
 const expandedPaths = ref<Set<string>>(new Set())
+
+onMounted(() => folderSourceStore.restoreLastFolder())
+watch(() => fileTree.value[0]?.path, (path) => {
+  if (path)
+    expandedPaths.value.add(path)
+}, { immediate: true })
 
 function handleToggleExpand(path: string) {
   if (expandedPaths.value.has(path)) {
@@ -66,15 +75,13 @@ async function handleSelectFolder() {
 }
 
 async function handleRefreshFolder() {
-  if (currentFolderHandle.value) {
-    await folderSourceStore.loadFileTree(currentFolderHandle.value.handle)
-  }
+  await folderSourceStore.reconnectFolder()
 }
 
-function handleCloseFolder() {
-  folderSourceStore.closeFolder()
-  expandedPaths.value.clear()
-  setCurrentFilePath(null)
+async function handleForgetFolder() {
+  await folderSourceStore.forgetFolder()
+  if (!rememberedFolderName.value)
+    expandedPaths.value.clear()
 }
 
 async function handleOpenFile(node: any) {
@@ -120,13 +127,14 @@ async function handleOpenFile(node: any) {
         </h3>
         <div class="flex items-center gap-1">
           <Button
-            v-if="currentFolderHandle"
+            v-if="rememberedFolderName"
             variant="ghost"
             size="sm"
             class="h-7 w-7 p-0"
-            :title="t('folder.closeFolder')"
-            :aria-label="t('folder.closeFolder')"
-            @click="handleCloseFolder"
+            :title="t('folder.forgetFolder')"
+            :aria-label="t('folder.forgetFolder')"
+            :disabled="isLoading"
+            @click="handleForgetFolder"
           >
             <FolderClosed class="h-3 w-3" />
           </Button>
@@ -173,6 +181,9 @@ async function handleOpenFile(node: any) {
     </div>
 
     <div class="panel-content flex-1 overflow-y-auto p-2">
+      <p v-if="persistenceError" role="alert" class="text-xs text-destructive mb-3 break-words">
+        {{ persistenceError }}
+      </p>
       <div
         v-if="!isFileSystemAPISupported"
         class="flex flex-col items-center justify-center h-full text-center p-4 text-muted-foreground"
@@ -197,12 +208,23 @@ async function handleOpenFile(node: any) {
       </div>
 
       <div
-        v-else-if="loadError"
-        class="flex flex-col items-center justify-center h-full text-center p-4 text-destructive"
+        v-else-if="loadError || (rememberedFolderName && !currentFolderHandle)"
+        class="flex flex-col items-center justify-center h-full text-center p-4 gap-3"
       >
-        <p class="text-sm">
+        <FolderClosed class="h-10 w-10 text-muted-foreground" />
+        <p v-if="rememberedFolderName" class="text-sm font-medium break-all">
+          {{ rememberedFolderName }}
+        </p>
+        <p v-if="loadError" role="alert" class="text-sm text-destructive break-words">
           {{ loadError }}
         </p>
+        <p v-else-if="needsPermission" class="text-sm text-muted-foreground">
+          {{ t('folder.permissionRequired') }}
+        </p>
+        <Button v-if="rememberedFolderName" variant="outline" size="sm" @click="folderSourceStore.reconnectFolder()">
+          <RefreshCw class="h-3 w-3 mr-1" />
+          {{ t('folder.reconnect') }}
+        </Button>
       </div>
 
       <div

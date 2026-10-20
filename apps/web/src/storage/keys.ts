@@ -3,7 +3,8 @@ import { addPrefix } from '@/storage/prefix'
 
 /** IndexedDB database name */
 export const DB_NAME = `doocs-md`
-export const DB_VERSION = 5
+export const DB_VERSION = 6
+export const STORE_FOLDERS = `folders`
 export const STORE_ASSETS = `assets`
 
 export const STORE_DOCUMENTS = `documents`

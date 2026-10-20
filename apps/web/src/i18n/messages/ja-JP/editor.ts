@@ -166,6 +166,12 @@ export default {
   folder: {
     title: `ローカルフォルダー`,
     closeFolder: `フォルダーを閉じる`,
+    forgetFolder: `接続を削除（ファイルは保持）`,
+    reconnect: `再接続`,
+    permissionRequired: `フォルダーは保存されています。アクセスの再許可が必要です。`,
+    rememberFailed: `今回は使用できますが、フォルダーを保存できませんでした: {message}`,
+    restoreFailed: `フォルダーを復元できません。再接続するか、別のフォルダーを選択してください: {message}`,
+    forgetFailed: `接続を削除できませんでした。再試行してください: {message}`,
     closePanel: `パネルを閉じる`,
     openFolder: `フォルダーを開く`,
     browserUnsupported: `お使いのブラウザはローカルフォルダーアクセスに対応していません`,

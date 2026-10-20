@@ -166,6 +166,12 @@ export default {
   folder: {
     title: `本地資料夾`,
     closeFolder: `關閉資料夾`,
+    forgetFolder: `忘記此資料夾（不刪除檔案）`,
+    reconnect: `重新連接`,
+    permissionRequired: `資料夾已記住，需要重新授權存取`,
+    rememberFailed: `本次可以使用，但未能記住資料夾：{message}`,
+    restoreFailed: `無法恢復資料夾，可重新連接或選擇其他資料夾：{message}`,
+    forgetFailed: `未能清除資料夾連接，請重試：{message}`,
     closePanel: `關閉面板`,
     openFolder: `開啟資料夾`,
     browserUnsupported: `您的瀏覽器不支援本地資料夾訪問`,

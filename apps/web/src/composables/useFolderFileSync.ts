@@ -7,66 +7,101 @@ export function useFolderFileSync() {
   const folderStore = useFolderSourceStore()
 
   const currentFilePath = ref<string | null>(null)
+  let boundFolder: FileSystemDirectoryHandle | null = null
+  let boundPostId: string | null = null
+  let pendingContent: string | null = null
+  let editVersion = 0
 
   let syncTimeoutId: ReturnType<typeof setTimeout> | null = null
 
   const SYNC_DELAY = 1000
 
   function setCurrentFilePath(filePath: string | null) {
+    cancelTimer()
+    editVersion++
+    pendingContent = null
     currentFilePath.value = filePath
+    boundFolder = filePath ? folderStore.currentFolderHandle?.handle ?? null : null
+    boundPostId = filePath ? postStore.currentPostId : null
   }
 
-  async function performSync(filePath: string, content: string) {
-    if (!filePath) {
+  function cancelTimer() {
+    if (syncTimeoutId)
+      clearTimeout(syncTimeoutId)
+    syncTimeoutId = null
+  }
+
+  function isBound() {
+    return postStore.currentPostId === boundPostId
+      && folderStore.currentFolderHandle?.handle === boundFolder
+  }
+
+  function connectionPending() {
+    return folderStore.isLoading || (!folderStore.currentFolderHandle
+      && (folderStore.needsPermission || !!folderStore.loadError))
+  }
+
+  async function performSync() {
+    if (!currentFilePath.value || pendingContent === null || connectionPending())
+      return
+    if (!isBound()) {
+      setCurrentFilePath(null)
       return
     }
-
+    const filePath = currentFilePath.value
+    const content = pendingContent
+    const version = editVersion
+    const folder = boundFolder
+    const postId = boundPostId
+    pendingContent = null
     try {
       await folderStore.writeFile(filePath, content)
     }
     catch (error: any) {
+      if (editVersion === version && currentFilePath.value === filePath && boundPostId === postId && boundFolder === folder)
+        pendingContent ??= content
       console.error('文件同步失败:', error)
     }
   }
 
   function debouncedSync() {
-    if (!currentFilePath.value || !postStore.currentPost) {
+    cancelTimer()
+    if (!currentFilePath.value || pendingContent === null || connectionPending())
       return
-    }
-
-    if (syncTimeoutId) {
-      clearTimeout(syncTimeoutId)
-    }
-
     syncTimeoutId = setTimeout(() => {
-      const content = postStore.currentPost?.content || ''
-      performSync(currentFilePath.value!, content)
+      syncTimeoutId = null
+      void performSync()
     }, SYNC_DELAY)
   }
 
   watch(
     () => postStore.currentPost?.content,
-    () => {
+    (content) => {
+      if (!currentFilePath.value || postStore.currentPostId !== boundPostId)
+        return
+      editVersion++
+      pendingContent = content ?? ''
       debouncedSync()
     },
     { deep: false },
   )
 
   watch(
-    () => currentFilePath.value,
-    (newPath, oldPath) => {
-      if (oldPath && newPath !== oldPath && syncTimeoutId) {
-        clearTimeout(syncTimeoutId)
-        syncTimeoutId = null
-      }
+    () => [connectionPending(), folderStore.currentFolderHandle?.handle, postStore.currentPostId],
+    () => {
+      if (currentFilePath.value && postStore.currentPostId !== boundPostId)
+        setCurrentFilePath(null)
+      else if (connectionPending())
+        cancelTimer()
+      else if (currentFilePath.value && !isBound())
+        setCurrentFilePath(null)
+      else
+        debouncedSync()
     },
+    { flush: 'sync' },
   )
 
-  onBeforeUnmount(() => {
-    if (syncTimeoutId) {
-      clearTimeout(syncTimeoutId)
-    }
-  })
+  onBeforeUnmount(cancelTimer)
 
   return {
     currentFilePath,

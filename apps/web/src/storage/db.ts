@@ -8,6 +8,7 @@ import {
   STORE_ASSETS,
   STORE_CACHE,
   STORE_DOCUMENTS,
+  STORE_FOLDERS,
   STORE_META,
   STORE_SECRETS,
   STORE_SETTINGS,
@@ -36,6 +37,7 @@ export interface MetaRecord {
 }
 
 interface MdDBSchema extends DBSchema {
+  folders: { key: string, value: { id: string, handle: FileSystemDirectoryHandle } }
   assets: { key: string, value: AssetRecord }
   documents: {
     key: string
@@ -77,6 +79,8 @@ export async function upgradeDB(
   _newVersion: number | null,
   transaction: UpgradeTx,
 ): Promise<void> {
+  if (oldVersion < 6 && !db.objectStoreNames.contains(STORE_FOLDERS))
+    db.createObjectStore(STORE_FOLDERS, { keyPath: 'id' })
   if (oldVersion < 5 && !db.objectStoreNames.contains(STORE_ASSETS))
     db.createObjectStore(STORE_ASSETS, { keyPath: 'path' })
   if (oldVersion < 1) {

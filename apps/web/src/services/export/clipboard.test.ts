@@ -28,6 +28,48 @@ describe(`modifyHtmlStructure`, () => {
     const outerOl = root.querySelector(`ol`)
     expect(outerOl?.children[1].tagName).toBe(`OL`)
   })
+
+  it('keeps branded numbers and text in one paragraph without native list tags', () => {
+    const input = `<ol start="6" style="margin:20px 0">
+      <li class="yh-marked" style="padding-left:25px;margin:10px 0"><span class="yh-list-marker" style="display:inline-block;min-width:25px;margin-left:-25px;color:#4285f4">6. </span><p>财富应按<strong>全球购买力</strong>衡量。</p></li>
+      <li class="yh-marked" style="padding-left:25px"><span class="yh-list-marker" style="color:#28864b">7. </span>保持<a href="https://example.com">长期判断</a>。</li>
+      <li class="yh-marked"><span class="yh-list-marker">10. </span><p>保持原编号。</p><p>保留第二段。</p></li>
+    </ol>`
+    const root = document.createElement('div')
+    root.innerHTML = modifyHtmlStructure(input)
+    expect(root.querySelector('ol, ul, li')).toBeNull()
+    const markers = [...root.querySelectorAll<HTMLElement>('.yh-list-marker')]
+    expect(markers.map(el => el.textContent?.trim())).toEqual(['6.', '7.', '10.'])
+    expect(markers.map(el => el.parentElement?.tagName)).toEqual(['P', 'P', 'P'])
+    expect(markers[0].parentElement?.textContent).toMatch(/^6\.\s*财富应按全球购买力衡量。$/)
+    expect(markers[1].parentElement?.textContent).toMatch(/^7\.\s*保持长期判断。$/)
+    expect(markers[0].style.color).toBe('rgb(66, 133, 244)')
+    expect(markers[0].style.marginLeft).toBe('0px')
+    expect(markers[0].parentElement?.querySelector('strong')?.textContent).toBe('全球购买力')
+    expect(root.querySelector('a')?.getAttribute('href')).toBe('https://example.com')
+    expect(root.querySelector('p p, p section')).toBeNull()
+    expect(root.textContent).toContain('保留第二段。')
+    expect(modifyHtmlStructure(root.innerHTML)).toBe(root.innerHTML)
+  })
+
+  it('preserves nested branded lists, block content and sibling order', () => {
+    const root = document.createElement('div')
+    root.innerHTML = modifyHtmlStructure(`<ul>
+      <li class="yh-marked"><span class="yh-list-marker">• </span>外层
+        <ol><li class="yh-marked"><span class="yh-list-marker">1. </span><p>内层</p><pre><code>example()</code></pre></li></ol>
+        <p>后续内容</p>
+      </li>
+      <li class="yh-marked"><span class="yh-list-marker">• </span>下一项</li>
+    </ul>`)
+    expect(root.querySelector('ol, ul, li')).toBeNull()
+    const rows = root.querySelectorAll('.yh-marked')
+    expect(rows).toHaveLength(3)
+    expect(rows[0].contains(rows[1])).toBe(true)
+    expect(rows[0].contains(rows[2])).toBe(false)
+    expect(rows[0].lastElementChild?.textContent).toBe('后续内容')
+    expect(root.querySelector('p pre, p section, p p')).toBeNull()
+    expect(root.querySelector('pre code')?.textContent).toBe('example()')
+  })
 })
 
 describe(`solveWeChatImage`, () => {

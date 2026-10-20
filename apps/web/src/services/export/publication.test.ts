@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs'
+import { wrapCSSWithScope } from '@md/core/theme'
 import { defaultPerThemeSettings } from '@md/shared/configs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { waitForPreviewReady } from '@/lib/preview/preview-ready'
+import { YANHUI_THEME, yanhuiDefaults } from '@/yanhui/defaults'
+import { processClipboardContent } from './clipboard'
 import { purePublicationHtml } from './html'
 import { getHtmlContent } from './html-content'
 import { preparePublication } from './publication'
@@ -22,6 +26,33 @@ beforeEach(() => {
   state.flush.mockImplementation(() => ({ postId: 'post-a', title: state.title, revision: 3, markdown: state.markdown }))
 })
 describe('publication snapshot', () => {
+  it('copies continuous branded list numbers with their text without changing source or HTML export', async () => {
+    state.markdown = '# List example\n\n## Section\n\n6. First **important** item.\n\n7. Next item with a [link](https://example.com).\n\n8. Third item.\n\n9. Fourth item.\n\n10. Last item.'
+    state.theme.id = YANHUI_THEME
+    state.theme.settings = yanhuiDefaults()
+    state.theme.css = wrapCSSWithScope(readFileSync('src/yanhui/theme.css', 'utf8'), '#output')
+    const publication = await preparePublication()
+    const original = publication.root.innerHTML
+    try {
+      const copied = await processClipboardContent('#4285f4', publication)
+      const root = document.createElement('div')
+      root.innerHTML = copied.html
+      expect(root.querySelector('ol, ul, li')).toBeNull()
+      const markers = [...root.querySelectorAll<HTMLElement>('.yh-list-marker')]
+      expect(markers.map(marker => marker.textContent?.trim())).toEqual(['6.', '7.', '8.', '9.', '10.'])
+      for (const marker of markers) {
+        expect(marker.parentElement?.tagName).toBe('P')
+        expect(marker.parentElement?.textContent?.trim().length).toBeGreaterThan(10)
+        expect(marker.style.color, marker.outerHTML).not.toBe('')
+      }
+      expect(root.querySelector('strong')?.textContent).toBe('important')
+      expect(root.querySelector('a[href="https://example.com"]')).not.toBeNull()
+      expect(publication.root.innerHTML).toBe(original)
+      expect(publication.root.querySelector('ol')).not.toBeNull()
+      expect(publication.snapshot.markdown).toBe(state.markdown)
+    }
+    finally { publication.dispose() }
+  })
   it('sanitizes the unstyled HTML shared by download and clipboard', async () => {
     state.markdown = '<script>window.stolen = true</script>\n\n<img src="x" onerror="alert(1)"><a href="javascript:alert(1)">保留文字</a>'
     const publication = await preparePublication()

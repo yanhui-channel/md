@@ -7,8 +7,10 @@ import { sanitizeTitle } from '@md/shared/utils/basicHelpers'
 import { downloadFile } from '@md/shared/utils/fileHelpers'
 import { uuidv4 } from '@md/shared/utils/uuid'
 import { getLocale, t } from '@/i18n/translate'
+import { PRIVATE_SYNC_ENABLED } from '@/services/account/config'
 import { store } from '@/storage'
 import { addPrefix } from '@/storage/prefix'
+import { useThemeStore } from '@/stores/theme'
 
 function getDefaultCssContent() {
   return getDefaultCustomTheme(getLocale())
@@ -99,7 +101,15 @@ export const useCssEditorStore = defineStore(`cssEditor`, () => {
   }
 
   const getCurrentTabContent = () => {
+    const restored = PRIVATE_SYNC_ENABLED ? useThemeStore().restoredTheme : null
+    if (restored)
+      return restored.customCss ?? ''
     return getCurrentTab().content
+  }
+  const updateArticleCss = (content: string) => {
+    const restored = PRIVATE_SYNC_ENABLED ? useThemeStore().restoredTheme : null
+    if (restored)
+      restored.customCss = content
   }
 
   const setCssEditorValue = (content: string) => {
@@ -122,6 +132,7 @@ export const useCssEditorStore = defineStore(`cssEditor`, () => {
     const tab = cssContentConfig.value.tabs.find(tab => tab.id === id)
     if (!tab)
       return
+    updateArticleCss(tab.content)
     setCssEditorValue(tab.content)
 
     if (onTabChangedCallback) {
@@ -148,6 +159,7 @@ export const useCssEditorStore = defineStore(`cssEditor`, () => {
     })
     const newTab = cssContentConfig.value.tabs[cssContentConfig.value.tabs.length - 1]
     cssContentConfig.value.active = newTab.id
+    updateArticleCss(content)
     setCssEditorValue(content)
 
     if (onTabChangedCallback) {
@@ -157,6 +169,7 @@ export const useCssEditorStore = defineStore(`cssEditor`, () => {
 
   const resetCssConfig = () => {
     const defaultContent = getDefaultCssContent()
+    updateArticleCss(defaultContent)
     const defaultId = uuidv4()
     cssContentConfig.value = {
       active: defaultId,
@@ -184,7 +197,7 @@ export const useCssEditorStore = defineStore(`cssEditor`, () => {
     if (!cssEditorDom)
       return
 
-    cssEditorDom.value = getCurrentTab().content
+    cssEditorDom.value = getCurrentTabContent()
 
     const cssContainer = document.createElement(`div`)
     cssContainer.className = 'w-full h-full'
@@ -193,13 +206,14 @@ export const useCssEditorStore = defineStore(`cssEditor`, () => {
     cssEditorThemeCompartment.value = new Compartment()
 
     const state = EditorState.create({
-      doc: getCurrentTab().content,
+      doc: getCurrentTabContent(),
       extensions: [
         cssSetup(),
         cssEditorThemeCompartment.value.of(editorTheme(isDark.value)),
         CMEditorView.updateListener.of((update) => {
           if (update.docChanged) {
             const content = update.state.doc.toString()
+            updateArticleCss(content)
             const tab = getCurrentTab()
             tab.content = content
             tab.updateDatetime = new Date()

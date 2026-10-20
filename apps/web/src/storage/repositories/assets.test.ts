@@ -2,10 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { assetRepo } from './assets'
 
 const db = vi.hoisted(() => ({ put: vi.fn(), get: vi.fn() }))
+const mode = vi.hoisted(() => ({ private: true }))
+vi.mock('@/services/account/config', () => ({ get PRIVATE_SYNC_ENABLED() { return mode.private } }))
 vi.mock('@/storage/db', () => ({ getDatabase: async () => db }))
 vi.mock('@/storage/repositories/documents', () => ({ isUsingLegacyDocumentStorage: () => false }))
 const png = () => new File([Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jGZkAAAAASUVORK5CYII='), c => c.charCodeAt(0))], 'image.png', { type: 'image/png' })
 beforeEach(() => {
+  mode.private = true
   const rows = new Map()
   db.put.mockReset().mockImplementation(async (_store, value) => { rows.set(value.path, value) })
   db.get.mockReset().mockImplementation(async (_store, key) => rows.get(key))
@@ -14,6 +17,19 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('local assets', () => {
+  it('keeps the ordinary deployment Blob format unchanged', async () => {
+    mode.private = false
+    await assetRepo.put(png())
+    expect(db.put.mock.calls[0][1].blob).toBeInstanceOf(Blob)
+  })
+  it('stores binary bytes for WebKit and still reads legacy Blob records', async () => {
+    const asset = await assetRepo.put(png())
+    const row = db.put.mock.calls[0][1]
+    expect(row.blob).toBeUndefined()
+    expect(row.bytes).toBeInstanceOf(ArrayBuffer)
+    db.get.mockResolvedValueOnce(asset)
+    expect(await (await assetRepo.get(asset.path))!.blob.arrayBuffer()).toEqual(await png().arrayBuffer())
+  })
   it('duplicateBytesReusePath and stored bytes are unchanged', async () => {
     const file = png()
     const first = await assetRepo.put(file)

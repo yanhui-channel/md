@@ -1,9 +1,18 @@
 import { validateImageFile } from '@/lib/upload/validate-image'
+import { PRIVATE_SYNC_ENABLED } from '@/services/account/config'
 import { getDatabase } from '@/storage/db'
 import { STORE_ASSETS } from '@/storage/keys'
 import { isUsingLegacyDocumentStorage } from './documents'
 
 export interface StoredAsset { path: string, sha256: string, mime: string, size: number, blob: Blob }
+export type AssetRecord = StoredAsset | (Omit<StoredAsset, 'blob'> & { bytes: ArrayBuffer })
+export async function assetRecord(asset: StoredAsset): Promise<AssetRecord> {
+  if (!PRIVATE_SYNC_ENABLED)
+    return asset
+  const { blob, ...meta } = asset
+  // WebKit ephemeral storage can reject Blob writes; keep legacy Blob reads compatible.
+  return { ...meta, bytes: await blob.arrayBuffer() }
+}
 export const MAX_ASSET_SIZE = 10 * 1024 * 1024
 export const LOCAL_ASSET_PATTERN = /^assets\/[a-f0-9]{64}\.(?:png|jpg|gif|webp)$/
 
@@ -56,12 +65,16 @@ export const assetRepo = {
       throw new Error('visual.localStorageUnavailable')
     const asset = await validateAsset(file)
     const db = await getDatabase()
-    await db.put(STORE_ASSETS, asset)
+    await db.put(STORE_ASSETS, await assetRecord(asset))
     return asset
   },
   async get(path: string): Promise<StoredAsset | undefined> {
     if (!LOCAL_ASSET_PATTERN.test(path))
       return undefined
-    return (await getDatabase()).get(STORE_ASSETS, path)
+    const record = await (await getDatabase()).get(STORE_ASSETS, path)
+    if (!record || 'blob' in record)
+      return record
+    const { bytes, ...meta } = record
+    return { ...meta, blob: new Blob([bytes], { type: meta.mime }) }
   },
 }

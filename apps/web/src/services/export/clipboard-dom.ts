@@ -163,6 +163,72 @@ export function modifyHtmlStructure(htmlString: string): string {
   const tempDiv = document.createElement(`div`)
   tempDiv.innerHTML = htmlString
 
+  // Empty spans can be dropped on paste; keep the accent in a nonempty block with an inline border.
+  tempDiv.querySelectorAll<HTMLElement>(`.yh-heading > span.yh-heading-line:empty`).forEach((line) => {
+    const heading = line.parentElement!
+    if (heading.style.display === `none` || [`hidden`, `collapse`].includes(heading.style.visibility) || heading.style.opacity === `0`)
+      return
+    const accent = document.createElement(`p`)
+    accent.className = line.className
+    accent.setAttribute(`aria-hidden`, `true`)
+    accent.style.cssText = line.style.cssText
+    accent.style.borderTop = `${line.style.height || `2px`} solid ${line.style.backgroundColor || `transparent`}`
+    accent.style.background = `none`
+    accent.style.height = `0`
+    accent.style.lineHeight = `0`
+    accent.style.fontSize = heading.style.fontSize || `inherit`
+    accent.style.padding = `0`
+    accent.style.margin = `${line.style.marginTop || `0px`} 0 ${heading.style.marginBottom || `0px`} ${heading.style.paddingLeft || `0px`}`
+    accent.textContent = `\u00A0`
+    heading.style.marginBottom = `0`
+    heading.after(accent)
+    line.remove()
+  })
+
+  // WeChat rewrites native lists; explicit brand markers must share a paragraph with their text.
+  const asSection = (element: HTMLElement) => {
+    const section = document.createElement(`section`)
+    for (const attr of element.attributes)
+      section.setAttribute(attr.name, attr.value)
+    section.append(...element.childNodes)
+    element.replaceWith(section)
+    return section
+  }
+  const blockSelector = `p, section, div, ul, ol, blockquote, pre, table, figure, h1, h2, h3, h4, h5, h6, hr`
+  Array.from(tempDiv.querySelectorAll<HTMLElement>(`ol, ul`)).reverse().forEach((list) => {
+    const items = Array.from(list.children) as HTMLElement[]
+    if (!items.length || !items.every(item => item.matches(`li.yh-marked`) && item.querySelector(`:scope > .yh-list-marker`)))
+      return
+
+    if (list.parentElement?.matches(`li.yh-marked`))
+      list.style.marginLeft = `24px`
+    for (const item of items) {
+      const marker = item.querySelector<HTMLElement>(`:scope > .yh-list-marker`)!
+      marker.remove()
+      while (item.firstChild?.nodeType === Node.TEXT_NODE && !item.firstChild.textContent?.trim())
+        item.firstChild.remove()
+
+      let paragraph = item.firstChild instanceof HTMLParagraphElement ? item.firstChild : null
+      if (!paragraph) {
+        paragraph = document.createElement(`p`)
+        while (item.firstChild && !(item.firstChild instanceof Element && item.firstChild.matches(blockSelector)))
+          paragraph.append(item.firstChild)
+        item.prepend(paragraph)
+      }
+      marker.style.display = `inline`
+      marker.style.minWidth = `0`
+      marker.style.marginLeft = `0`
+      marker.style.marginRight = `4px`
+      marker.style.whiteSpace = `nowrap`
+      marker.textContent = `${marker.textContent?.trim() ?? ``}\u00A0`
+      paragraph.style.margin = `0`
+      paragraph.style.textIndent = `0`
+      paragraph.prepend(marker)
+      asSection(item).style.paddingLeft = `0`
+    }
+    asSection(list)
+  })
+
   tempDiv.querySelectorAll(`li > ul, li > ol`).forEach((originalItem) => {
     originalItem.parentElement?.insertAdjacentElement(`afterend`, originalItem)
   })

@@ -305,6 +305,7 @@ declare global {
   const usePreferredReducedMotion: typeof import('@vueuse/core').usePreferredReducedMotion
   const usePreferredReducedTransparency: typeof import('@vueuse/core').usePreferredReducedTransparency
   const usePrevious: typeof import('@vueuse/core').usePrevious
+  const usePrivateSyncStore: typeof import('./src/stores/privateSync').usePrivateSyncStore
   const useQuickCommandsStore: typeof import('./src/stores/quickCommands').useQuickCommandsStore
   const useRafFn: typeof import('@vueuse/core').useRafFn
   const useRefHistory: typeof import('@vueuse/core').useRefHistory

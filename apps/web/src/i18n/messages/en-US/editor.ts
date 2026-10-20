@@ -166,6 +166,12 @@ export default {
   folder: {
     title: `Local Folder`,
     closeFolder: `Close folder`,
+    forgetFolder: `Forget folder (keep files)`,
+    reconnect: `Reconnect`,
+    permissionRequired: `Folder remembered. Access permission is required.`,
+    rememberFailed: `Available for this session, but the folder could not be remembered: {message}`,
+    restoreFailed: `Could not restore folder. Reconnect or choose another folder: {message}`,
+    forgetFailed: `Could not forget folder. Please retry: {message}`,
     closePanel: `Close panel`,
     openFolder: `Open folder`,
     browserUnsupported: `Your browser does not support local folder access`,

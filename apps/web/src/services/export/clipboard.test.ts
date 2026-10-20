@@ -3,6 +3,45 @@ import { describe, expect, it } from 'vitest'
 import { modifyHtmlStructure, promoteSvgHtmlLabels, sanitizeHtmlCssForJuice, solveWeChatImage, stripInvalidCssForJuice } from './clipboard-dom'
 
 describe(`modifyHtmlStructure`, () => {
+  it.each(['display:none', 'visibility:hidden', 'opacity:0'])('keeps accents inside hidden headings: %s', (style) => {
+    const root = document.createElement('div')
+    root.innerHTML = `<h2 class="yh-heading" style="${style}">Hidden<span class="yh-heading-line" style="background:blue;height:2px"></span></h2>`
+    const original = root.innerHTML
+    expect(modifyHtmlStructure(original)).toBe(original)
+  })
+
+  it('does not replace custom accent content inlined from pseudo elements', () => {
+    const root = document.createElement('div')
+    root.innerHTML = '<h2 class="yh-heading">Title<span class="yh-heading-line"><span>Chapter</span></span></h2>'
+    const original = root.innerHTML
+    expect(modifyHtmlStructure(original)).toBe(original)
+  })
+
+  it('exports heading accents as nonempty bordered paragraphs outside headings', () => {
+    const root = document.createElement('div')
+    root.innerHTML = modifyHtmlStructure(`<h2 class="yh-heading" style="padding-left:1.69em;font-size:21px;margin:42px 0 22px"><span class="yh-heading-marker">4. </span><strong>全球秩序：</strong><span class="yh-heading-line" style="display:block;width:42px;height:2px;margin-top:12px;background:#d34336;opacity:0.7"></span></h2><p>正文</p><h3 class="yh-heading"><span class="yh-heading-marker">4.1 </span>子标题</h3>`)
+    // Rich-text paste may remove empty inline decorations and class-based styles.
+    root.querySelectorAll('span:empty, style').forEach(element => element.remove())
+    const heading = root.querySelector('h2')!
+    const line = heading.nextElementSibling as HTMLElement
+    expect(line.tagName).toBe('P')
+    expect(line.className).toBe('yh-heading-line')
+    expect(line.textContent).toBe('\u00A0')
+    expect(line.style.borderTopWidth).toBe('2px')
+    expect(line.style.borderTopColor).toBe('rgb(211, 67, 54)')
+    expect(line.style.width).toBe('42px')
+    expect(line.style.marginLeft).toBe('1.69em')
+    expect(line.style.fontSize).toBe('21px')
+    expect(line.style.marginTop).toBe('12px')
+    expect(line.style.marginBottom).toBe('22px')
+    expect(heading.style.marginBottom).toBe('0px')
+    expect(root.querySelectorAll('.yh-heading-line')).toHaveLength(1)
+    expect(heading.textContent).toBe('4. 全球秩序：')
+    expect(heading.querySelector('strong')?.textContent).toBe('全球秩序：')
+    expect(root.querySelector('h3')?.textContent).toBe('4.1 子标题')
+    expect(modifyHtmlStructure(root.innerHTML)).toBe(root.innerHTML)
+  })
+
   it(`moves nested lists out of their parent li`, () => {
     const input = `<ul><li>Item<ul><li>Nested</li></ul></li></ul>`
     const output = modifyHtmlStructure(input)
@@ -27,6 +66,48 @@ describe(`modifyHtmlStructure`, () => {
     root.innerHTML = output
     const outerOl = root.querySelector(`ol`)
     expect(outerOl?.children[1].tagName).toBe(`OL`)
+  })
+
+  it('keeps branded numbers and text in one paragraph without native list tags', () => {
+    const input = `<ol start="6" style="margin:20px 0">
+      <li class="yh-marked" style="padding-left:25px;margin:10px 0"><span class="yh-list-marker" style="display:inline-block;min-width:25px;margin-left:-25px;color:#4285f4">6. </span><p>财富应按<strong>全球购买力</strong>衡量。</p></li>
+      <li class="yh-marked" style="padding-left:25px"><span class="yh-list-marker" style="color:#28864b">7. </span>保持<a href="https://example.com">长期判断</a>。</li>
+      <li class="yh-marked"><span class="yh-list-marker">10. </span><p>保持原编号。</p><p>保留第二段。</p></li>
+    </ol>`
+    const root = document.createElement('div')
+    root.innerHTML = modifyHtmlStructure(input)
+    expect(root.querySelector('ol, ul, li')).toBeNull()
+    const markers = [...root.querySelectorAll<HTMLElement>('.yh-list-marker')]
+    expect(markers.map(el => el.textContent?.trim())).toEqual(['6.', '7.', '10.'])
+    expect(markers.map(el => el.parentElement?.tagName)).toEqual(['P', 'P', 'P'])
+    expect(markers[0].parentElement?.textContent).toMatch(/^6\.\s*财富应按全球购买力衡量。$/)
+    expect(markers[1].parentElement?.textContent).toMatch(/^7\.\s*保持长期判断。$/)
+    expect(markers[0].style.color).toBe('rgb(66, 133, 244)')
+    expect(markers[0].style.marginLeft).toBe('0px')
+    expect(markers[0].parentElement?.querySelector('strong')?.textContent).toBe('全球购买力')
+    expect(root.querySelector('a')?.getAttribute('href')).toBe('https://example.com')
+    expect(root.querySelector('p p, p section')).toBeNull()
+    expect(root.textContent).toContain('保留第二段。')
+    expect(modifyHtmlStructure(root.innerHTML)).toBe(root.innerHTML)
+  })
+
+  it('preserves nested branded lists, block content and sibling order', () => {
+    const root = document.createElement('div')
+    root.innerHTML = modifyHtmlStructure(`<ul>
+      <li class="yh-marked"><span class="yh-list-marker">• </span>外层
+        <ol><li class="yh-marked"><span class="yh-list-marker">1. </span><p>内层</p><pre><code>example()</code></pre></li></ol>
+        <p>后续内容</p>
+      </li>
+      <li class="yh-marked"><span class="yh-list-marker">• </span>下一项</li>
+    </ul>`)
+    expect(root.querySelector('ol, ul, li')).toBeNull()
+    const rows = root.querySelectorAll('.yh-marked')
+    expect(rows).toHaveLength(3)
+    expect(rows[0].contains(rows[1])).toBe(true)
+    expect(rows[0].contains(rows[2])).toBe(false)
+    expect(rows[0].lastElementChild?.textContent).toBe('后续内容')
+    expect(root.querySelector('p pre, p section, p p')).toBeNull()
+    expect(root.querySelector('pre code')?.textContent).toBe('example()')
   })
 })
 

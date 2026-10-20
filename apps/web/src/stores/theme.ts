@@ -4,7 +4,8 @@ import type { ThemeSnapshot } from '@/lib/visual/theme-snapshot'
 import { applyTheme, getThemeInjector } from '@md/core/theme'
 import { defaultPerThemeSettings, defaultStyleConfig, widthOptions } from '@md/shared/configs'
 import { isMarketplaceThemeKey } from '@md/shared/types'
-import { renderSnapshotCss, validateThemeSnapshot } from '@/lib/visual/theme-snapshot'
+import { renderSnapshotCss, validateArticleCss, validateThemeSnapshot } from '@/lib/visual/theme-snapshot'
+import { PRIVATE_SYNC_ENABLED } from '@/services/account/config'
 import { store } from '@/storage'
 import { addPrefix } from '@/storage/prefix'
 import { useCssEditorStore } from '@/stores/cssEditor'
@@ -22,6 +23,8 @@ export const useThemeStore = defineStore(`theme`, () => {
   const baseTheme = store.reactive<ThemeName>(addPrefix(`theme`), defaultStyleConfig.theme)
   const postStore = usePostStore()
   const snapshots = new Map<string, Ref<ThemeSnapshot>>()
+  const codeSources = new WeakMap<ThemeSnapshot, string>()
+  const codeLoads = new WeakMap<ThemeSnapshot, { url: string, promise: Promise<string> }>()
   const restoredTheme = computed(() => {
     const key = postStore.currentPost?.themeId
     if (!key)
@@ -30,7 +33,9 @@ export const useThemeStore = defineStore(`theme`, () => {
       const raw = store.getSync(key)
       if (!raw)
         return null
-      snapshots.set(key, store.reactive(key, validateThemeSnapshot(JSON.parse(raw))))
+      const snapshot = validateThemeSnapshot(JSON.parse(raw))
+      snapshots.set(key, PRIVATE_SYNC_ENABLED ? ref(snapshot) : store.reactive(key, snapshot))
+      codeSources.set(snapshots.get(key)!.value, snapshot.settings.codeBlockTheme)
     }
     return snapshots.get(key)!.value
   })
@@ -174,7 +179,39 @@ export const useThemeStore = defineStore(`theme`, () => {
     return headingStyles.value[level] || `default`
   }
 
-  const updateCodeTheme = () => {
+  function resolveCodeCss(snapshot: ThemeSnapshot): Promise<string> {
+    const url = snapshot.settings.codeBlockTheme
+    if (codeSources.get(snapshot) === url)
+      return Promise.resolve(snapshot.codeCss)
+    const pending = codeLoads.get(snapshot)
+    if (pending?.url === url)
+      return pending.promise
+    const promise = fetch(url, { signal: AbortSignal.timeout(5000) }).then(async (response) => {
+      if (!response.ok)
+        throw new Error('visual.exportThemeFailed')
+      const css = validateArticleCss(await response.text(), true)
+      if (snapshot.settings.codeBlockTheme === url) {
+        codeSources.set(snapshot, url)
+        snapshot.codeCss = css
+      }
+      return css
+    })
+    codeLoads.set(snapshot, { url, promise })
+    void promise.catch(() => {
+      if (codeLoads.get(snapshot)?.promise === promise)
+        codeLoads.delete(snapshot)
+    })
+    return promise
+  }
+
+  const updateCodeTheme = async () => {
+    const snapshot = restoredTheme.value
+    if (snapshot) {
+      try { await resolveCodeCss(snapshot) }
+      catch (error) { console.error('[updateCodeTheme]', error); return }
+      if (restoredTheme.value !== snapshot)
+        return
+    }
     document.querySelector('#article-code-theme')?.remove()
     if (restoredTheme.value) {
       document.querySelector('#hljs')?.remove()
@@ -241,7 +278,11 @@ export const useThemeStore = defineStore(`theme`, () => {
 
   watch(() => postStore.currentPost?.themeId, () => {
     void applyCurrentTheme()
-    updateCodeTheme()
+    void updateCodeTheme()
+    if (PRIVATE_SYNC_ENABLED) {
+      const css = useCssEditorStore()
+      css.setCssEditorValue(css.getCurrentTabContent())
+    }
   })
 
   return {
@@ -274,6 +315,7 @@ export const useThemeStore = defineStore(`theme`, () => {
     toggleUseJustify,
     resetStyle,
     updateCodeTheme,
+    resolveCodeCss,
     applyCurrentTheme,
     setHeadingStyle,
     getHeadingStyle,

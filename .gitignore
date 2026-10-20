@@ -70,3 +70,7 @@ apps/utools/release
 # Private local article seeds, never part of the public fork
 apps/web/src/yanhui/assets.json
 apps/web/src/yanhui/sample.md
+.private-worker-check/
+apps/web/dist-private/
+apps/web/test-results/
+apps/web/playwright-report/

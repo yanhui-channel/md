@@ -1,15 +1,19 @@
 /** md-api base URL (cloud sync, account login, etc.). */
-export const MD_API_URL = (
-  import.meta.env.VITE_MD_API_URL
-    ?? import.meta.env.VITE_SYNC_API_URL
-    ?? ``
-).replace(/\/$/, ``)
+export const PRIVATE_SYNC_ENABLED = import.meta.env.VITE_PRIVATE_SYNC_ENABLED === 'true'
+
+export const MD_API_URL = PRIVATE_SYNC_ENABLED
+  ? ''
+  : (
+      import.meta.env.VITE_MD_API_URL
+        ?? import.meta.env.VITE_SYNC_API_URL
+        ?? ``
+    ).replace(/\/$/, ``)
 
 /** OAuth redirect fragment parameter name. */
 export const OAUTH_TOKEN_HASH_KEY = `account_token`
 
 export function isAccountConfigured(): boolean {
-  return Boolean(MD_API_URL)
+  return !PRIVATE_SYNC_ENABLED && Boolean(MD_API_URL)
 }
 
 /** Whether to show account entry in UI (login / profile). */

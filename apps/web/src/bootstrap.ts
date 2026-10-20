@@ -17,6 +17,11 @@ export async function bootstrap(): Promise<void> {
   setupComponents()
   const i18n = await setupI18n(detectInitialLocale())
   setAppI18n(i18n)
+  if (import.meta.env.VITE_PRIVATE_SYNC_ENABLED === 'true') {
+    const { handleLocalCleanup } = await import('./offline/clear-local')
+    if (await handleLocalCleanup())
+      return
+  }
   function storageNotice(key: string) {
     let notice = document.getElementById('storage-notice')
     if (!notice) {
@@ -39,5 +44,9 @@ export async function bootstrap(): Promise<void> {
   app.use(createPinia())
   useLocaleStore()
   app.mount(`#app`)
+  if (import.meta.env.VITE_PRIVATE_SYNC_ENABLED === 'true') {
+    const { registerPrivateOffline } = await import('./offline/register')
+    void registerPrivateOffline()
+  }
   scheduleInitialLoaderFallback()
 }

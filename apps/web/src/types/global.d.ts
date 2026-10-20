@@ -24,6 +24,7 @@ declare global {
   }
 
   interface FileSystemDirectoryHandle {
+    queryPermission: (descriptor?: { mode?: `read` | `readwrite` }) => Promise<PermissionState>
     requestPermission: (descriptor?: { mode?: `read` | `readwrite` }) => Promise<PermissionState>
     getDirectoryHandle: (name: string, options?: { create?: boolean }) => Promise<FileSystemDirectoryHandle>
     getFileHandle: (name: string, options?: { create?: boolean }) => Promise<FileSystemFileHandle>

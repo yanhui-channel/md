@@ -26,6 +26,28 @@ beforeEach(() => {
   state.flush.mockImplementation(() => ({ postId: 'post-a', title: state.title, revision: 3, markdown: state.markdown }))
 })
 describe('publication snapshot', () => {
+  it('preserves heading accent colors when empty spans are removed during paste', async () => {
+    state.markdown = '# Article title\n\n## One\n\ntext\n\n## Two\n\ntext\n\n## Three\n\ntext\n\n## Four\n\n### Child\n\nbody'
+    state.theme.id = YANHUI_THEME
+    state.theme.settings = yanhuiDefaults()
+    state.theme.css = wrapCSSWithScope(['theme.css', 'headings.css'].map(name => readFileSync(`src/yanhui/${name}`, 'utf8')).join('\n'), '#output')
+    const publication = await preparePublication()
+    const original = publication.root.innerHTML
+    try {
+      const copied = await processClipboardContent('#4285f4', publication)
+      const root = document.createElement('div')
+      root.innerHTML = copied.html
+      root.querySelectorAll('span:empty, style').forEach(element => element.remove())
+      const lines = [...root.querySelectorAll<HTMLElement>('.yh-heading-line')]
+      expect(lines).toHaveLength(4)
+      expect(lines.map(line => line.style.borderTopColor)).toEqual(['rgb(66, 133, 244)', 'rgb(40, 134, 75)', 'rgb(157, 112, 0)', 'rgb(211, 67, 54)'])
+      expect(lines.every(line => line.previousElementSibling?.tagName === 'H2' && line.textContent === '\u00A0')).toBe(true)
+      expect(publication.root.innerHTML).toBe(original)
+      expect(root.textContent?.replace(/\s/g, '')).toBe(publication.root.textContent?.replace(/\s/g, ''))
+    }
+    finally { publication.dispose() }
+  })
+
   it('copies continuous branded list numbers with their text without changing source or HTML export', async () => {
     state.markdown = '# List example\n\n## Section\n\n6. First **important** item.\n\n7. Next item with a [link](https://example.com).\n\n8. Third item.\n\n9. Fourth item.\n\n10. Last item.'
     state.theme.id = YANHUI_THEME

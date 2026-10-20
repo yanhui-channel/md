@@ -3,6 +3,45 @@ import { describe, expect, it } from 'vitest'
 import { modifyHtmlStructure, promoteSvgHtmlLabels, sanitizeHtmlCssForJuice, solveWeChatImage, stripInvalidCssForJuice } from './clipboard-dom'
 
 describe(`modifyHtmlStructure`, () => {
+  it.each(['display:none', 'visibility:hidden', 'opacity:0'])('keeps accents inside hidden headings: %s', (style) => {
+    const root = document.createElement('div')
+    root.innerHTML = `<h2 class="yh-heading" style="${style}">Hidden<span class="yh-heading-line" style="background:blue;height:2px"></span></h2>`
+    const original = root.innerHTML
+    expect(modifyHtmlStructure(original)).toBe(original)
+  })
+
+  it('does not replace custom accent content inlined from pseudo elements', () => {
+    const root = document.createElement('div')
+    root.innerHTML = '<h2 class="yh-heading">Title<span class="yh-heading-line"><span>Chapter</span></span></h2>'
+    const original = root.innerHTML
+    expect(modifyHtmlStructure(original)).toBe(original)
+  })
+
+  it('exports heading accents as nonempty bordered paragraphs outside headings', () => {
+    const root = document.createElement('div')
+    root.innerHTML = modifyHtmlStructure(`<h2 class="yh-heading" style="padding-left:1.69em;font-size:21px;margin:42px 0 22px"><span class="yh-heading-marker">4. </span><strong>全球秩序：</strong><span class="yh-heading-line" style="display:block;width:42px;height:2px;margin-top:12px;background:#d34336;opacity:0.7"></span></h2><p>正文</p><h3 class="yh-heading"><span class="yh-heading-marker">4.1 </span>子标题</h3>`)
+    // Rich-text paste may remove empty inline decorations and class-based styles.
+    root.querySelectorAll('span:empty, style').forEach(element => element.remove())
+    const heading = root.querySelector('h2')!
+    const line = heading.nextElementSibling as HTMLElement
+    expect(line.tagName).toBe('P')
+    expect(line.className).toBe('yh-heading-line')
+    expect(line.textContent).toBe('\u00A0')
+    expect(line.style.borderTopWidth).toBe('2px')
+    expect(line.style.borderTopColor).toBe('rgb(211, 67, 54)')
+    expect(line.style.width).toBe('42px')
+    expect(line.style.marginLeft).toBe('1.69em')
+    expect(line.style.fontSize).toBe('21px')
+    expect(line.style.marginTop).toBe('12px')
+    expect(line.style.marginBottom).toBe('22px')
+    expect(heading.style.marginBottom).toBe('0px')
+    expect(root.querySelectorAll('.yh-heading-line')).toHaveLength(1)
+    expect(heading.textContent).toBe('4. 全球秩序：')
+    expect(heading.querySelector('strong')?.textContent).toBe('全球秩序：')
+    expect(root.querySelector('h3')?.textContent).toBe('4.1 子标题')
+    expect(modifyHtmlStructure(root.innerHTML)).toBe(root.innerHTML)
+  })
+
   it(`moves nested lists out of their parent li`, () => {
     const input = `<ul><li>Item<ul><li>Nested</li></ul></li></ul>`
     const output = modifyHtmlStructure(input)

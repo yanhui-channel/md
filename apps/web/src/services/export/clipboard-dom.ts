@@ -163,6 +163,28 @@ export function modifyHtmlStructure(htmlString: string): string {
   const tempDiv = document.createElement(`div`)
   tempDiv.innerHTML = htmlString
 
+  // Empty spans can be dropped on paste; keep the accent in a nonempty block with an inline border.
+  tempDiv.querySelectorAll<HTMLElement>(`.yh-heading > span.yh-heading-line:empty`).forEach((line) => {
+    const heading = line.parentElement!
+    if (heading.style.display === `none` || [`hidden`, `collapse`].includes(heading.style.visibility) || heading.style.opacity === `0`)
+      return
+    const accent = document.createElement(`p`)
+    accent.className = line.className
+    accent.setAttribute(`aria-hidden`, `true`)
+    accent.style.cssText = line.style.cssText
+    accent.style.borderTop = `${line.style.height || `2px`} solid ${line.style.backgroundColor || `transparent`}`
+    accent.style.background = `none`
+    accent.style.height = `0`
+    accent.style.lineHeight = `0`
+    accent.style.fontSize = heading.style.fontSize || `inherit`
+    accent.style.padding = `0`
+    accent.style.margin = `${line.style.marginTop || `0px`} 0 ${heading.style.marginBottom || `0px`} ${heading.style.paddingLeft || `0px`}`
+    accent.textContent = `\u00A0`
+    heading.style.marginBottom = `0`
+    heading.after(accent)
+    line.remove()
+  })
+
   // WeChat rewrites native lists; explicit brand markers must share a paragraph with their text.
   const asSection = (element: HTMLElement) => {
     const section = document.createElement(`section`)
